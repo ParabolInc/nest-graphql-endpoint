@@ -1,0 +1,62 @@
+{
+  "name": "nest-graphql-endpoint",
+  "author": "Matt Krick <matt.krick@gmail.com>",
+  "version": "0.0.1",
+  "description": "Nest an external GraphQL Endpoint",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mattkrick/nest-graphql-endpoint"
+  },
+  "keywords": [
+    "github",
+    "GraphQL",
+    "schema"
+  ],
+  "scripts": {
+    "lint": "eslint --fix src/**/*.ts",
+    "precommit": "lint-staged && tsc",
+    "prepublish": "tsc"
+  },
+  "license": "MIT",
+  "sideEffects": false,
+  "main": "lib/nestGraphQLEndpoint.js",
+  "peerDependencies": {
+    "graphql": "*"
+  },
+  "dependencies": {
+    "@graphql-tools/merge": "^6.2.13",
+    "@graphql-tools/schema": "^7.1.4",
+    "@graphql-tools/wrap": "^7.0.8",
+    "@octokit/graphql-schema": "^10.36.0",
+    "abort-controller": "^3.0.0",
+    "dataloader": "2.0.0",
+    "node-fetch": "^2.6.1",
+    "tslib": "~2.2.0",
+    "typescript": "^4.2.4"
+  },
+  "devDependencies": {
+    "@types/node-fetch": "^2.5.10",
+    "@typescript-eslint/eslint-plugin": "^4.22.0",
+    "@typescript-eslint/parser": "^4.22.0",
+    "eslint": "^7.25.0",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-prettier": "^3.4.0",
+    "husky": "^6.0.0",
+    "lint-staged": "^10.5.4",
+    "prettier": "^2.2.1"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "git add"
+    ]
+  },
+  "prettier": {
+    "arrowParens": "always",
+    "bracketSpacing": false,
+    "printWidth": 100,
+    "singleQuote": true,
+    "semi": false,
+    "trailingComma": "all"
+  }
+}
