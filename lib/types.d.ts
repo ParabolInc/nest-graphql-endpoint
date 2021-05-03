@@ -1,5 +1,5 @@
-import DataLoader from "dataloader";
-import { DocumentNode, GraphQLResolveInfo, GraphQLSchema } from "graphql";
+import DataLoader from 'dataloader';
+import { DocumentNode, GraphQLResolveInfo, GraphQLSchema } from 'graphql';
 export interface BaseGraphQLError {
     message: string;
 }
