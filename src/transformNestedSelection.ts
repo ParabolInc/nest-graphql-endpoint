@@ -69,7 +69,7 @@ const unprefixTypes = (document: DocumentNode, prefix: string) => {
         ...node,
         name: {
           ...node.name,
-          value: value.slice(prefix.length),
+          value: value.startsWith(prefix) ? value.slice(prefix.length) : value,
         },
       }
     },
