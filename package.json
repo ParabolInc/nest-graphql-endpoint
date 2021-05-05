@@ -5,7 +5,7 @@
   "description": "Nest an external GraphQL Endpoint",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mattkrick/nest-graphql-endpoint"
+    "url": "https://github.com/parabolinc/nest-graphql-endpoint"
   },
   "keywords": [
     "github",
