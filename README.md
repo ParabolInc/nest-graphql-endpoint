@@ -1,4 +1,8 @@
-### Nest an external GraphQL Endpoint (Like GitHub's v4 API)
+## Nest an external GraphQL Endpoint (Like GitHub's v4 API)
+
+### How it works
+
+https://www.parabol.co/blog/nest-github-api-in-graphql-schema
 
 ### What's it do?
 
