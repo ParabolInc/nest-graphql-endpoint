@@ -4,19 +4,7 @@ import {RenameRootTypes, RenameTypes, wrapSchema} from '@graphql-tools/wrap'
 import {GraphQLResolveInfo, GraphQLSchema} from 'graphql'
 import getRequestDataLoader from './getDataLoader'
 import transformNestedSelection from './transformNestedSelection'
-import {
-  BaseGraphQLError,
-  ExecutionRef,
-  GraphQLEndpointError,
-  NestGraphQLEndpointParams,
-} from './types'
-
-interface NestedSource<TContext> {
-  context: TContext
-  errors?: BaseGraphQLError[] | null
-  errorPromise?: Promise<BaseGraphQLError[] | null | undefined>
-  resolveErrors?: (errors: GraphQLEndpointError[] | null | undefined) => void
-}
+import {ExecutionRef, NestedSource, NestGraphQLEndpointParams} from './types'
 
 const nestGraphQLEndpoint = <TContext>(params: NestGraphQLEndpointParams<TContext>) => {
   const {
@@ -50,9 +38,21 @@ const nestGraphQLEndpoint = <TContext>(params: NestGraphQLEndpointParams<TContex
     executionRef: ExecutionRef,
     info: GraphQLResolveInfo,
   ) => {
-    const {context} = source
     if (source.errors) return null
-    const {document, variables} = transformNestedSelection(info, prefix)
+    const {context, wrapper} = source
+    let transform: ReturnType<typeof transformNestedSelection>
+    try {
+      transform = transformNestedSelection(info, prefix, wrapper)
+    } catch (e) {
+      const errors = [{message: e.message || 'Transform error'}]
+      if (source.resolveErrors) {
+        source.resolveErrors(errors)
+      } else {
+        source.errors = errors
+      }
+      return null
+    }
+    const {document, variables, wrappedPath} = transform
     // Create a new dataloader for each execution (a context is created for each execution)
     const ghDataLoader = getRequestDataLoader(executionRef)
     const res = await ghDataLoader.load({
@@ -71,7 +71,9 @@ const nestGraphQLEndpoint = <TContext>(params: NestGraphQLEndpointParams<TContex
     } else {
       source.errors = res.errors
     }
-    return res.data
+    return wrappedPath
+      ? wrappedPath.reduce((obj, prop) => obj?.[prop] ?? null, res.data as any)
+      : res.data
   }
 
   return mergeSchemas({

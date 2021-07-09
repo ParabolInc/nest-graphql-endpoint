@@ -20,6 +20,7 @@ query {
         message
       }
       query {
+        # These values come from GitHub
         viewer {
           bio
         }
@@ -34,6 +35,15 @@ query {
           viewer {
             bio
           }
+        }
+      }
+    }
+    todos {
+      ... on _extGitHubIssue {
+        # These values come from GitHub, too
+        number
+        repository {
+          nameWithOwner
         }
       }
     }
@@ -55,7 +65,7 @@ return nestGraphQLEndpoint({
   fieldName: 'github',
   resolveEndpointContext: (source) => ({accessToken: source.accessToken}),
   executor: (document, variables, context) => {
-    // Not for production! See nestGitHubEndpoint for a production-ready example
+    // Executor fn not for production! See nestGitHubEndpoint for a production-ready executor
     return fetch('https://foo.co', {
       headers: {
         Authorization: `Bearer ${context.accessToken}`
@@ -83,10 +93,78 @@ return nestGitHubEndpoint({
   fieldName: 'github',
   // Assumes a `githubToken` is on the User object
   resolveEndpointContext: (source) => ({accessToken: source.githubToken})
-})
+}).schema
 ```
 
+### Example field resolution
 
+Say each `User` has a list of `todos` and some of those come from Jira & others come from GitHub.
+```gql
+type User {
+  id: ID!
+  todos: [Todo]
+}
+interface Todo {
+  id: ID!
+}
+type _extGitHubIssue implements Todo
+type JiraIssue implements Todo
+```
+
+```ts
+// Front-end
+const UserQuery = graphql`
+  query UserQuery($userId: ID!) {
+    user(id: $userId) {
+      todos {
+        __typename
+        ... on JiraIssue {
+          descriptionHTML
+        }
+      ... on  _extGitHubIssue {
+        bodyHTML
+        number
+        respository {
+          nameWithOwner
+        }
+      }
+    }
+  }
+`;
+const ShowTodo = (props) => {
+  const data = useQuery(UserQuery)
+  if (!data) return null
+  return data.todos.map((todo) => {
+    if todo.__typename === 'JiraIssue') {
+      return <JiraTodo todo={todo}/>
+    }
+    return <GitHubTodo todo={todo}/>
+  })
+}
+```
+
+```ts
+// Backend
+const {schema, githubRequest} = nestGitHubEndpoint({...})
+
+const todoResolver = (source, args, context, info) => {
+  if (source.type === 'github') {
+    const ghContext = {accessToken: '123'}
+    const {nameWithOwner, issueNumber} = source
+    const [repoOwner, repoName] = nameWithOwner.split('/')
+    const wrapper = `
+          {
+            repository(owner: "${repoOwner}", name: "${repoName}") {
+              issue(number: ${issueNumber}) {
+                ...info
+              }
+            }
+          }`
+    const {data, errors} = await githubRequest(wrapper, ghContext, context, info)
+    return data // returns
+  }
+}
+```
 ### How it works
 
 1. It extends your schema with a type that contains `{errors, query, mutation}`
@@ -95,7 +173,7 @@ return nestGitHubEndpoint({
 4. For each batched request, it removes the `__typename` prefix and merges the fragments, variableDefinitions, and variables.
 5. In the event of a name conflict, it will alias fields before the request is fetched.
 6. When the endpoint responds, it will de-alias the response, re-apply the `__typename` prefix, and filter the errors by path
-
+7. For field resolvers, it removes any types that don't exist on the endpoint & then sends the request.
 
 ### License
 

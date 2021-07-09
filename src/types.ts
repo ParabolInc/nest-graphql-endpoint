@@ -75,3 +75,11 @@ export type EndpointDataLoader<TContext> = DataLoader<
   DataLoaderKey<TContext>,
   EndpointExecutionResult
 >
+
+export interface NestedSource<TContext> {
+  context: TContext
+  wrapper?: DocumentNode
+  errors?: BaseGraphQLError[] | null
+  errorPromise?: Promise<BaseGraphQLError[] | null | undefined>
+  resolveErrors?: (errors: GraphQLEndpointError[] | null | undefined) => void
+}

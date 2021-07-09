@@ -1,9 +1,9 @@
 import {schema} from '@octokit/graphql-schema'
 import AbortController from 'abort-controller'
-import {print} from 'graphql'
+import {GraphQLObjectType, GraphQLResolveInfo, OperationDefinitionNode, parse, print} from 'graphql'
 import fetch from 'node-fetch'
 import nestGraphQLEndpoint from './nestGraphQLEndpoint'
-import {Executor, NestGraphQLEndpointParams} from './types'
+import {Executor, NestedSource, NestGraphQLEndpointParams} from './types'
 
 const ENDPOINT_TIMEOUT = 8000
 const executor: Executor<{accessToken: string}> = async (document, variables, context) => {
@@ -58,9 +58,31 @@ type NestGitHubParams = {prefix?: string} & Pick<
   NestGraphQLEndpointParams<{accessToken: string}>,
   'parentSchema' | 'parentType' | 'fieldName' | 'resolveEndpointContext'
 >
+
 const nestGitHubEndpoint = (params: NestGitHubParams) => {
-  const {parentSchema, parentType, fieldName, resolveEndpointContext, prefix} = params
-  return nestGraphQLEndpoint({
+  const {parentSchema, parentType, fieldName, resolveEndpointContext} = params
+  const prefix = params.prefix || '_extGitHub'
+  const githubRequest = async <T>(
+    wrapper: string,
+    endpointContext: T,
+    context: any,
+    info: GraphQLResolveInfo,
+  ) => {
+    const {schema} = info
+    const githubApi = schema.getType(`${prefix}Api`) as GraphQLObjectType
+    const fields = githubApi.getFields()
+    const wrapperAST = parse(wrapper)
+    const {definitions} = wrapperAST
+    const [firstDefinition] = definitions
+    const {operation} = firstDefinition as OperationDefinitionNode
+    const resolve = fields[operation].resolve!
+    const source = {context: endpointContext, wrapper: wrapperAST} as NestedSource<T>
+    const data = await resolve(source, {}, context, info)
+    const {errors} = source
+    return {data, errors}
+  }
+
+  const nestedSchema = nestGraphQLEndpoint({
     parentSchema,
     parentType,
     fieldName,
@@ -71,5 +93,8 @@ const nestGitHubEndpoint = (params: NestGitHubParams) => {
     endpointTimeout: ENDPOINT_TIMEOUT,
     schemaIDL: schema.idl,
   })
+
+  return {schema: nestedSchema, githubRequest}
 }
+
 export default nestGitHubEndpoint
