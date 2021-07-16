@@ -1,5 +1,10 @@
 # nest-graphql-endpoint
 
+## 0.2.1
+
+### Fixed
+- Improved error filtering
+
 ## 0.2.0
 
 ### Added

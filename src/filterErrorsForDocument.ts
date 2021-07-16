@@ -7,6 +7,12 @@ const visitDocFotPath = (path: string[], selectionSetNode: SelectionSetNode) => 
     if (!pathSlice.length || !node) return
     const [firstPathName] = pathSlice
     const {selections} = node
+    const isSpread = firstPathName.startsWith('...')
+    if (isSpread) {
+      // always include errors in fragments (technically not correct)
+      isPathInDoc = true
+      return
+    }
     const matchingChild = selections.find(
       (selection) => selection.kind === 'Field' && selection.name.value === firstPathName,
     ) as FieldNode | undefined
@@ -31,12 +37,14 @@ const filterErrorsForDocument = (
     (definition) => definition.kind === 'OperationDefinition',
   ) as OperationDefinitionNode | undefined
   if (!operationNode) return errors
-  const {selectionSet} = operationNode
+  const {selectionSet, operation} = operationNode
 
   const filteredErrors = errors.filter(({path}) => {
     // If endpoint doesn't give us the path, don't filter it out
-    if (!path) return true
-    return !path || visitDocFotPath(path, selectionSet)
+    if (!path || path.length === 0) return true
+    const [startField] = path
+    const testPath = startField.startsWith(operation) ? path.slice(1) : path
+    return visitDocFotPath(testPath, selectionSet)
   })
   return filteredErrors.length ? filteredErrors : null
 }
