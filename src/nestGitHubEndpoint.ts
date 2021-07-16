@@ -59,25 +59,35 @@ type NestGitHubParams = {prefix?: string} & Pick<
   'parentSchema' | 'parentType' | 'fieldName' | 'resolveEndpointContext'
 >
 
+interface Input<TVars> {
+  query: string
+  endpointContext: Record<string, any>
+  info: GraphQLResolveInfo
+  // only necessary if the query needs them
+  variables?: TVars
+  //to reuse a dataloader, pass in your execution context object
+  batchRef?: Record<any, any>
+}
 const nestGitHubEndpoint = (params: NestGitHubParams) => {
   const {parentSchema, parentType, fieldName, resolveEndpointContext} = params
   const prefix = params.prefix || '_extGitHub'
-  const githubRequest = async <T>(
-    wrapper: string,
-    endpointContext: T,
-    context: any,
-    info: GraphQLResolveInfo,
-  ) => {
+  const githubRequest = async <TData = any, TVars = any>(input: Input<TVars>) => {
+    const {query, endpointContext, variables, batchRef, info} = input
     const {schema} = info
     const githubApi = schema.getType(`${prefix}Api`) as GraphQLObjectType
     const fields = githubApi.getFields()
-    const wrapperAST = parse(wrapper)
+    const wrapperAST = parse(query)
     const {definitions} = wrapperAST
     const [firstDefinition] = definitions
     const {operation} = firstDefinition as OperationDefinitionNode
     const resolve = fields[operation].resolve!
-    const source = {context: endpointContext, wrapper: wrapperAST} as NestedSource<T>
-    const data = await resolve(source, {}, context, info)
+    const source = {
+      context: endpointContext,
+      wrapper: wrapperAST,
+      wrapperVars: variables,
+    } as NestedSource<any>
+    const context = batchRef ?? {}
+    const data = (await resolve(source, {}, context, info)) as TData
     const {errors} = source
     return {data, errors}
   }

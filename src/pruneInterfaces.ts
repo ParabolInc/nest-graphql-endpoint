@@ -7,14 +7,15 @@ import {
   InlineFragmentNode,
   isAbstractType,
   isLeafType,
+  isWrappingType,
   visit
 } from 'graphql'
 
 const pruneLocalTypes = (doc: DocumentNode, prefix: string, info: GraphQLResolveInfo) => {
   const {returnType, schema} = info
   let rootType = returnType as GraphQLCompositeType
-  while ('ofType' in returnType) {
-    rootType = returnType.ofType
+  while (isWrappingType(rootType)) {
+    rootType = rootType.ofType
   }
   if (rootType.name.startsWith(prefix) || isLeafType(rootType)) return doc
   // we know the type is a local type, which means it's either an interface or union
@@ -31,7 +32,7 @@ const pruneLocalTypes = (doc: DocumentNode, prefix: string, info: GraphQLResolve
     const valueType = schema.getType(value)
     // if the fragment is not endpoint-native & it cannot resolve to one, delete it
     if (!isAbstractType(valueType)) return null
-    //
+
     const allowableTypes = schema
       .getPossibleTypes(valueType)
       .map((type) => type.name)

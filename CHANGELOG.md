@@ -1,5 +1,13 @@
 # nest-graphql-endpoint
 
+## 0.2.0
+
+### Added
+- Support for wrapped return types
+- Support for wrapper vars
+- Support for wrapper fragments
+- githubRequest is a generic for better var params and data output
+
 ## 0.1.0
 
 ### Added

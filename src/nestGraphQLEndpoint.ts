@@ -39,7 +39,7 @@ const nestGraphQLEndpoint = <TContext>(params: NestGraphQLEndpointParams<TContex
     info: GraphQLResolveInfo,
   ) => {
     if (source.errors) return null
-    const {context, wrapper} = source
+    const {context, wrapper, wrapperVars} = source
     let transform: ReturnType<typeof transformNestedSelection>
     try {
       transform = transformNestedSelection(info, prefix, wrapper)
@@ -57,7 +57,7 @@ const nestGraphQLEndpoint = <TContext>(params: NestGraphQLEndpointParams<TContex
     const ghDataLoader = getRequestDataLoader(executionRef)
     const res = await ghDataLoader.load({
       document,
-      variables,
+      variables: {...variables, ...wrapperVars},
       context,
       options: {
         batchKey,

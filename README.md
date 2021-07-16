@@ -4,6 +4,12 @@
 
 https://www.parabol.co/blog/nest-github-api-in-graphql-schema
 
+### Install
+
+```sh
+yarn add nest-graphql-endpoint
+```
+
 ### What's it do?
 
 Merges a remote graphql endpoint into your schema.

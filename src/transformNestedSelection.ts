@@ -1,5 +1,4 @@
 import {
-  DefinitionNode,
   DocumentNode,
   FieldNode,
   FragmentDefinitionNode,
@@ -7,22 +6,38 @@ import {
   OperationDefinitionNode,
   visit
 } from 'graphql'
-import pruneLocalTypes from './pruneLocalTypes'
+import pruneInterfaces from './pruneInterfaces'
 import {Variables} from './types'
 
-const pruneUnusedNodes = (info: GraphQLResolveInfo) => {
+// Transform the info fieldNodes into a standalone document AST
+const transformInfoIntoDoc = (info: GraphQLResolveInfo) => {
+  return {
+    kind: 'Document',
+    definitions: [
+      {
+        kind: info.operation.kind,
+        operation: info.operation.operation,
+        variableDefinitions: info.operation.variableDefinitions || [],
+        selectionSet: {
+          kind: 'SelectionSet',
+          selections: info.fieldNodes.flatMap(({selectionSet}) => selectionSet!.selections),
+        },
+      },
+      ...Object.values(info.fragments || {}),
+    ],
+  } as DocumentNode
+}
+
+// remove unused fragDefs, varDefs, and variables
+const pruneUnused = (doc: DocumentNode, allVariables: Record<string, string>) => {
   const usedVariables = new Set<string>()
   const usedFragmentSpreads = new Set<string>()
-  const fragmentDefinitions = [] as FragmentDefinitionNode[]
-  const querySelectionSet = {
-    kind: 'SelectionSet' as const,
-    selections: info.fieldNodes.flatMap(({selectionSet}) => selectionSet!.selections),
-  }
-  const variableDefinitions = info.operation.variableDefinitions || []
-  const fragments = info.fragments || {}
-  const allVariables = info.variableValues || {}
+  const {definitions} = doc
+  const opDef = definitions.find(
+    ({kind}) => kind === 'OperationDefinition',
+  ) as OperationDefinitionNode
 
-  visit(querySelectionSet, {
+  visit(opDef.selectionSet, {
     Variable(node) {
       const {name} = node
       const {value} = name
@@ -35,17 +50,21 @@ const pruneUnusedNodes = (info: GraphQLResolveInfo) => {
     },
   })
 
-  const prunedVariableDefinitions = variableDefinitions.filter((varDef) => {
-    const {variable} = varDef
-    const {name} = variable
-    const {value} = name
-    return usedVariables.has(value)
-  })
-  Object.keys(fragments).forEach((fragmentName) => {
-    if (usedFragmentSpreads.has(fragmentName)) {
-      fragmentDefinitions.push(fragments[fragmentName])
-    }
-  })
+  const variableDefinitions = opDef.variableDefinitions || []
+  const prunedOpDef = {
+    ...opDef,
+    variableDefinitions: variableDefinitions.filter((varDef) => {
+      const {variable} = varDef
+      const {name} = variable
+      const {value} = name
+      return usedVariables.has(value)
+    }),
+  }
+
+  const prunedFragDefs = definitions.filter(
+    (definition) =>
+      definition.kind === 'FragmentDefinition' && usedFragmentSpreads.has(definition.name.value),
+  ) as FragmentDefinitionNode[]
 
   const variables = {} as Variables
   usedVariables.forEach((variableName) => {
@@ -55,16 +74,8 @@ const pruneUnusedNodes = (info: GraphQLResolveInfo) => {
   return {
     variables,
     document: {
-      kind: 'Document' as const,
-      definitions: [
-        {
-          kind: info.operation.kind,
-          operation: info.operation.operation,
-          variableDefinitions: prunedVariableDefinitions,
-          selectionSet: querySelectionSet,
-        },
-        ...fragmentDefinitions,
-      ],
+      ...doc,
+      definitions: [prunedOpDef, ...prunedFragDefs],
     },
   }
 }
@@ -87,26 +98,13 @@ const unprefixTypes = (document: DocumentNode, prefix: string) => {
 
 const MAGIC_FRAGMENT_NAME = 'info'
 
-// if the request is coming in via another type
-// remove local types & fragments
-// insert the fragment into the user-defined wrapper at the point of `...info`
-// and when the value returns, remove the wrapper
-const delocalizeDoc = (
-  doc: DocumentNode,
-  prefix: string,
-  info: GraphQLResolveInfo,
-  wrapper?: DocumentNode,
-) => {
-  if (!wrapper) return {document: doc}
-  const delocalizedDoc = pruneLocalTypes(doc, prefix, info)
-  const {definitions} = delocalizedDoc
-  const firstDefinition = definitions[0] as OperationDefinitionNode
-
-  // TODO include wrapper + variables so we can cache this
-  const {definitions: wrapperDefs} = wrapper
-  const [wrappedDefinition] = wrapperDefs
+// if the request is coming in via a wrapper
+// inject fieldNodes at the magic fragment spread
+// record the path so the returned value ignores the wrapper
+const mergeFieldNodesAndWrapper = (info: GraphQLResolveInfo, wrapper: DocumentNode) => {
+  // TODO cache on wrapper input string
   const wrappedPath = [] as string[]
-  const joinedAST = visit(wrappedDefinition, {
+  const mergedDoc = visit(wrapper, {
     SelectionSet(node, _key, parent, _path, ancestors) {
       const {selections} = node
       const [firstSelection] = selections
@@ -114,6 +112,7 @@ const delocalizeDoc = (
       const {name} = firstSelection
       const {value} = name
       if (value !== MAGIC_FRAGMENT_NAME) return undefined
+      if (wrappedPath.length) throw new Error(`Only one ...${MAGIC_FRAGMENT_NAME} is allowed`)
       ancestors.forEach((ancestor) => {
         if ('kind' in ancestor && ancestor.kind === 'Field') {
           const {name} = ancestor
@@ -122,17 +121,41 @@ const delocalizeDoc = (
         }
       })
       wrappedPath.push((parent as FieldNode).name.value)
-      return firstDefinition.selectionSet
+      return {
+        kind: 'SelectionSet' as const,
+        selections: info.fieldNodes.flatMap(({selectionSet}) => selectionSet!.selections),
+      }
     },
-  }) as DefinitionNode
+  }) as DocumentNode
 
-  return {
-    wrappedPath,
-    document: {
-      ...delocalizedDoc,
-      definitions: [joinedAST, ...definitions.slice(1)],
-    },
-  }
+  // if magic fragment spread was not used, return early
+  if (wrappedPath.length === 0) return {document: mergedDoc}
+
+  // turn info into a doc
+  const extraDefsDoc = transformInfoIntoDoc(info)
+  const docs = [mergedDoc, extraDefsDoc]
+  const opDefs = docs.map(
+    ({definitions}) =>
+      definitions.find(({kind}) => kind === 'OperationDefinition') as OperationDefinitionNode,
+  )
+  const fragDefs = docs.flatMap(
+    ({definitions}) =>
+      definitions.filter(({kind}) => kind === 'FragmentDefinition') as FragmentDefinitionNode[],
+  )
+
+  const [mergedOpDef] = opDefs
+
+  const mergedDocAndDefs = {
+    ...mergedDoc,
+    definitions: [
+      {
+        ...mergedOpDef,
+        variableDefinitions: opDefs.flatMap((op) => op.variableDefinitions || []),
+      },
+      ...fragDefs,
+    ],
+  } as DocumentNode
+  return {wrappedPath, document: mergedDocAndDefs}
 }
 
 const transformNestedSelection = (
@@ -140,9 +163,16 @@ const transformNestedSelection = (
   prefix: string,
   wrapper?: DocumentNode,
 ) => {
-  const {variables, document: prefixedDoc} = pruneUnusedNodes(info)
-  const {document: delocalizedDoc, wrappedPath} = delocalizeDoc(prefixedDoc, prefix, info, wrapper)
-  const document = unprefixTypes(delocalizedDoc, prefix)
+  if (!wrapper) {
+    const infoDoc = transformInfoIntoDoc(info)
+    const {variables, document: prefixedDoc} = pruneUnused(infoDoc, info.variableValues)
+    const document = unprefixTypes(prefixedDoc, prefix)
+    return {document, variables, wrappedPath: undefined}
+  }
+  const {document: mergedDoc, wrappedPath} = mergeFieldNodesAndWrapper(info, wrapper)
+  const localizedDoc = pruneInterfaces(mergedDoc, prefix, info)
+  const {variables, document: prunedDoc} = pruneUnused(localizedDoc, info.variableValues)
+  const document = unprefixTypes(prunedDoc, prefix)
   return {document, variables, wrappedPath}
 }
 
