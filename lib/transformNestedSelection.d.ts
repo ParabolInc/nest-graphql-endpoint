@@ -1,7 +1,23 @@
-import { DocumentNode, GraphQLResolveInfo } from 'graphql';
+import { DocumentNode, FragmentDefinitionNode, GraphQLResolveInfo } from 'graphql';
 import { Variables } from './types';
 declare const transformNestedSelection: (info: GraphQLResolveInfo, prefix: string, wrapper?: DocumentNode | undefined) => {
     document: DocumentNode;
+    variables: Variables;
+    wrappedPath: undefined;
+} | {
+    document: {
+        definitions: (FragmentDefinitionNode | {
+            variableDefinitions: import("graphql").VariableDefinitionNode[];
+            kind: "OperationDefinition";
+            loc?: import("graphql").Location | undefined;
+            operation: import("graphql").OperationTypeNode;
+            name?: import("graphql").NameNode | undefined;
+            directives?: readonly import("graphql").DirectiveNode[] | undefined;
+            selectionSet: import("graphql").SelectionSetNode;
+        })[];
+        kind: "Document";
+        loc?: import("graphql").Location | undefined;
+    };
     variables: Variables;
     wrappedPath: string[] | undefined;
 };
