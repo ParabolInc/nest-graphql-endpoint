@@ -101,7 +101,7 @@ const MAGIC_FRAGMENT_NAME = 'info'
 // if the request is coming in via a wrapper
 // inject fieldNodes at the magic fragment spread
 // record the path so the returned value ignores the wrapper
-const mergeFieldNodesAndWrapper = (info: GraphQLResolveInfo, wrapper: DocumentNode) => {
+const mergeFieldNodesAndWrapper = (fieldNodesDoc: DocumentNode, wrapper: DocumentNode) => {
   // TODO cache on wrapper input string
   const wrappedPath = [] as string[]
   const mergedDoc = visit(wrapper, {
@@ -121,19 +121,18 @@ const mergeFieldNodesAndWrapper = (info: GraphQLResolveInfo, wrapper: DocumentNo
         }
       })
       wrappedPath.push((parent as FieldNode).name.value)
-      return {
-        kind: 'SelectionSet' as const,
-        selections: info.fieldNodes.flatMap(({selectionSet}) => selectionSet!.selections),
-      }
+      const {definitions} = fieldNodesDoc
+      const fieldNodesOpDef = definitions.find(
+        (def) => def.kind === 'OperationDefinition',
+      ) as OperationDefinitionNode
+      return fieldNodesOpDef.selectionSet
     },
   }) as DocumentNode
 
   // if magic fragment spread was not used, return early
   if (wrappedPath.length === 0) return {document: mergedDoc}
 
-  // turn info into a doc
-  const extraDefsDoc = transformInfoIntoDoc(info)
-  const docs = [mergedDoc, extraDefsDoc]
+  const docs = [mergedDoc, fieldNodesDoc]
   const opDefs = docs.map(
     ({definitions}) =>
       definitions.find(({kind}) => kind === 'OperationDefinition') as OperationDefinitionNode,
@@ -169,10 +168,15 @@ const transformNestedSelection = (
     const document = unprefixTypes(prefixedDoc, prefix)
     return {document, variables, wrappedPath: undefined}
   }
-  const {document: mergedDoc, wrappedPath} = mergeFieldNodesAndWrapper(info, wrapper)
-  const localizedDoc = pruneInterfaces(mergedDoc, prefix, info)
-  const {variables, document: prunedDoc} = pruneUnused(localizedDoc, info.variableValues)
-  const document = unprefixTypes(prunedDoc, prefix)
+  const fieldNodesDoc = transformInfoIntoDoc(info)
+  const fieldNodesWithoutLocalInterfacesDoc = pruneInterfaces(fieldNodesDoc, prefix, info)
+  const unprefixedFieldNodesDoc = unprefixTypes(fieldNodesWithoutLocalInterfacesDoc, prefix)
+
+  const {document: mergedDoc, wrappedPath} = mergeFieldNodesAndWrapper(
+    unprefixedFieldNodesDoc,
+    wrapper,
+  )
+  const {variables, document} = pruneUnused(mergedDoc, info.variableValues)
   return {document, variables, wrappedPath}
 }
 

@@ -1,5 +1,10 @@
 # nest-graphql-endpoint
 
+## 0.2.2
+
+### Fixed
+- Prune field nodes, not user-defined wrapper
+
 ## 0.2.1
 
 ### Fixed
