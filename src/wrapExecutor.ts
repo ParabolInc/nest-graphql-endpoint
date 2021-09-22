@@ -4,9 +4,9 @@ import {Executor} from './types'
 const wrapExecutor = <TContext>(
   executor: Executor<TContext>,
   prefix: string,
-): Executor<TContext> => async (document, variables, context) => {
+): Executor<TContext> => async (document, variables, endpointTimeout, context) => {
   try {
-    const response = await executor(document, variables, context)
+    const response = await executor(document, variables, endpointTimeout, context)
     renameResponseTypenames_(response, prefix)
     return response
   } catch (e) {
@@ -14,7 +14,7 @@ const wrapExecutor = <TContext>(
       data: null,
       errors: [
         {
-          message: e?.message ?? `${prefix}: Executor failed`,
+          message: (e as any)?.message ?? `${prefix}: Executor failed`,
         },
       ],
     }

@@ -20,7 +20,7 @@ const batchFn = async <TContext extends Record<string, any>>(
 ) => {
   const [firstKey] = keys
   const {options} = firstKey
-  const {batchKey, executor, isMutation, prefix} = options
+  const {batchKey, endpointTimeout, executor, isMutation, prefix} = options
   const wrappedExecutor = wrapExecutor(executor, prefix)
   const execParamsByToken = keys.reduce((obj, key, idx) => {
     const {context} = key
@@ -46,7 +46,7 @@ const batchFn = async <TContext extends Record<string, any>>(
       // context is per-fetch
       const {context} = firstParam
       const {document, variables, aliasMappers} = mergeGQLDocuments(execParams, isMutation)
-      const result = await wrappedExecutor(document, variables, context)
+      const result = await wrappedExecutor(document, variables, endpointTimeout, context)
       const {errors, data} = result
       execParams.forEach((execParam, idx) => {
         const aliasMapper = aliasMappers[idx]

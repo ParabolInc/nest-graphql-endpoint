@@ -1,5 +1,10 @@
 # nest-graphql-endpoint
 
+## 0.3.0
+
+### Changed
+- `endpointTimeout` is now passed to the executor
+- `nestGitHubEndpoint` accepts all the params as `nestGraphQLEndpoint`
 ## 0.2.2
 
 ### Fixed

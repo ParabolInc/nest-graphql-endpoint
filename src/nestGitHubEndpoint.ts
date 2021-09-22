@@ -1,18 +1,21 @@
 import {schema} from '@octokit/graphql-schema'
-import AbortController from 'abort-controller'
 import {GraphQLObjectType, GraphQLResolveInfo, OperationDefinitionNode, parse, print} from 'graphql'
 import fetch from 'node-fetch'
 import nestGraphQLEndpoint from './nestGraphQLEndpoint'
-import {Executor, NestedSource, NestGraphQLEndpointParams} from './types'
+import {EndpointExecutionResult, Executor, NestedSource, NestGraphQLEndpointParams} from './types'
 
-const ENDPOINT_TIMEOUT = 8000
-const executor: Executor<{accessToken: string}> = async (document, variables, context) => {
+const defaultExecutor: Executor<{accessToken: string; headers?: Record<string, string>}> = async (
+  document,
+  variables,
+  endpointTimeout,
+  context,
+) => {
   const controller = new AbortController()
   const {signal} = controller
-  const {accessToken} = context
+  const {accessToken, headers} = context
   const timeout = setTimeout(() => {
     controller.abort()
-  }, ENDPOINT_TIMEOUT)
+  }, endpointTimeout)
   try {
     const result = await fetch('https://api.github.com/graphql', {
       signal,
@@ -21,6 +24,7 @@ const executor: Executor<{accessToken: string}> = async (document, variables, co
         'Content-Type': 'application/json',
         Authorization: `Bearer ${accessToken}`,
         Accept: 'application/json',
+        ...headers,
       },
       body: JSON.stringify({
         query: print(document),
@@ -28,8 +32,8 @@ const executor: Executor<{accessToken: string}> = async (document, variables, co
       }),
     })
     clearTimeout(timeout)
-    const resJSON = await result.json()
-    if (resJSON.data || resJSON.errors) return resJSON
+    const resJSON = (await result.json()) as EndpointExecutionResult | {message?: string}
+    if ('data' in resJSON || 'errors' in resJSON) return resJSON
     const message = String(resJSON.message) || JSON.stringify(resJSON)
     return {
       errors: [
@@ -46,7 +50,7 @@ const executor: Executor<{accessToken: string}> = async (document, variables, co
       errors: [
         {
           type: 'GitHub is down',
-          message: String(e.message),
+          message: String((e as any).message),
         },
       ],
       data: null,
@@ -54,10 +58,14 @@ const executor: Executor<{accessToken: string}> = async (document, variables, co
   }
 }
 
-type NestGitHubParams = {prefix?: string} & Pick<
-  NestGraphQLEndpointParams<{accessToken: string}>,
+type NestParams = NestGraphQLEndpointParams<{accessToken: string; headers?: Record<string, string>}>
+type RequiredParams = Pick<
+  NestParams,
   'parentSchema' | 'parentType' | 'fieldName' | 'resolveEndpointContext'
 >
+
+type OptionalParams = Omit<Partial<NestParams>, keyof RequiredParams>
+type NestGitHubParams = RequiredParams & OptionalParams
 
 interface Input<TVars> {
   query: string
@@ -70,7 +78,11 @@ interface Input<TVars> {
 }
 const nestGitHubEndpoint = (params: NestGitHubParams) => {
   const {parentSchema, parentType, fieldName, resolveEndpointContext} = params
+  const executor = params.executor || defaultExecutor
   const prefix = params.prefix || '_extGitHub'
+  const batchKey = params.batchKey || 'accessToken'
+  const endpointTimeout = params.endpointTimeout || 8000
+  const schemaIDL = params.schemaIDL || schema.idl
   const githubRequest = async <TData = any, TVars = any>(input: Input<TVars>) => {
     const {query, endpointContext, variables, batchRef, info} = input
     const {schema} = info
@@ -98,10 +110,10 @@ const nestGitHubEndpoint = (params: NestGitHubParams) => {
     fieldName,
     resolveEndpointContext,
     executor,
-    prefix: prefix || '_extGitHub',
-    batchKey: 'accessToken',
-    endpointTimeout: ENDPOINT_TIMEOUT,
-    schemaIDL: schema.idl,
+    prefix,
+    batchKey,
+    endpointTimeout,
+    schemaIDL,
   })
 
   return {schema: nestedSchema, githubRequest}

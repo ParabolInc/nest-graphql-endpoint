@@ -26,7 +26,7 @@ export declare type Variables = Record<string, unknown>;
 export interface AliasMapper {
     [aliasedName: string]: string;
 }
-export declare type Executor<TContext> = (document: DocumentNode, variables: Variables, context: TContext) => EndpointExecutionResult | Promise<EndpointExecutionResult>;
+export declare type Executor<TContext> = (document: DocumentNode, variables: Variables, endpointTimeout: number, context: TContext) => EndpointExecutionResult | Promise<EndpointExecutionResult>;
 declare type ResolveEndpointContext<TContext> = (source: any, args: any, context: any, info: GraphQLResolveInfo) => TContext | Promise<TContext>;
 export interface NestGraphQLEndpointParams<TContext> {
     parentSchema: GraphQLSchema;
@@ -45,6 +45,7 @@ export interface DataLoaderKey<TContext> {
     context: TContext;
     options: {
         batchKey: string;
+        endpointTimeout: number;
         executor: Executor<TContext>;
         prefix: string;
         isMutation: boolean;

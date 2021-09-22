@@ -61,6 +61,7 @@ const nestGraphQLEndpoint = <TContext>(params: NestGraphQLEndpointParams<TContex
       context,
       options: {
         batchKey,
+        endpointTimeout,
         executor,
         prefix,
         isMutation: !!isMutation,

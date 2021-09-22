@@ -75,7 +75,7 @@ return nestGraphQLEndpoint({
   fieldName: 'github',
   resolveEndpointContext: (source) => ({accessToken: source.accessToken}),
   executor: (document, variables, context) => {
-    // Executor fn not for production! See nestGitHubEndpoint for a production-ready executor
+    // Example executor fn not for production! See nestGitHubEndpoint for a production-ready executor
     return fetch('https://foo.co', {
       headers: {
         Authorization: `Bearer ${context.accessToken}`
@@ -102,13 +102,17 @@ return nestGitHubEndpoint({
   parentType: 'User',
   fieldName: 'github',
   // Assumes a `githubToken` is on the User object
-  resolveEndpointContext: (source) => ({accessToken: source.githubToken})
+  // GitHub preview is being phased out, but still requires a custom header to access preview features
+  resolveEndpointContext: (source) => ({accessToken: source.githubToken, headers: {'Accept': 'application/vnd.github.bane-preview+json'}})
 }).schema
 ```
+
+Note: Requires Node v15.0.0 to use the native `AbortController`
 
 ### Example field resolution
 
 Say each `User` has a list of `todos` and some of those come from Jira & others come from GitHub.
+
 ```gql
 type User {
   id: ID!

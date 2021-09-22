@@ -36,6 +36,7 @@ export interface AliasMapper {
 export type Executor<TContext> = (
   document: DocumentNode,
   variables: Variables,
+  endpointTimeout: number,
   context: TContext,
 ) => EndpointExecutionResult | Promise<EndpointExecutionResult>
 
@@ -65,6 +66,7 @@ export interface DataLoaderKey<TContext> {
   // options are per-execution
   options: {
     batchKey: string
+    endpointTimeout: number
     executor: Executor<TContext>
     prefix: string
     isMutation: boolean
