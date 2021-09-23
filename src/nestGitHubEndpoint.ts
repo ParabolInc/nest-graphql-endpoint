@@ -18,7 +18,7 @@ const defaultExecutor: Executor<{accessToken: string; headers?: Record<string, s
   }, endpointTimeout)
   try {
     const result = await fetch('https://api.github.com/graphql', {
-      signal,
+      signal: signal as any,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

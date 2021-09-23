@@ -1,5 +1,9 @@
 # nest-graphql-endpoint
 
+## 0.3.1
+
+### Fixed
+- Downgrade node-fetch. Why would they force ESM? >:0
 ## 0.3.0
 
 ### Changed
