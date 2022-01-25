@@ -74,9 +74,9 @@ const addNewVariableDefinitions_ = (
     const {variable} = curVarDef
     const {name} = variable
     const {value: varDefName} = name
-    const isPresent = baseVarDefs.find((varDef) => {
+    const isPresent = baseVarDefs.find((varDef) =>
       varDef.variable.name.value === varDefName
-    })
+    )
     if (!isPresent) {
       baseVarDefs.push(curVarDef)
     }
