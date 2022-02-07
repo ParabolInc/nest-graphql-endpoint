@@ -7,13 +7,13 @@ declare const transformNestedSelection: (info: GraphQLResolveInfo, prefix: strin
 } | {
     document: {
         definitions: (FragmentDefinitionNode | {
+            selectionSet: any;
             variableDefinitions: import("graphql").VariableDefinitionNode[];
             kind: "OperationDefinition";
             loc?: import("graphql").Location | undefined;
             operation: import("graphql").OperationTypeNode;
             name?: import("graphql").NameNode | undefined;
             directives?: readonly import("graphql").DirectiveNode[] | undefined;
-            selectionSet: import("graphql").SelectionSetNode;
         })[];
         kind: "Document";
         loc?: import("graphql").Location | undefined;
