@@ -1,5 +1,11 @@
 # nest-graphql-endpoint
 
+## 0.3.3
+
+### Fixed
+
+- Remove fragment spreads for pruned fragment definitions
+
 ## 0.3.2
 
 ### Fixed

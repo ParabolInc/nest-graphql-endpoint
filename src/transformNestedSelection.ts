@@ -7,7 +7,7 @@ import {
   visit
 } from 'graphql'
 import pruneInterfaces from './pruneInterfaces'
-import {Variables} from './types'
+import { Variables } from './types'
 
 // Transform the info fieldNodes into a standalone document AST
 const transformInfoIntoDoc = (info: GraphQLResolveInfo) => {
@@ -37,7 +37,7 @@ const pruneUnused = (doc: DocumentNode, allVariables: Record<string, string>) =>
     ({kind}) => kind === 'OperationDefinition',
   ) as OperationDefinitionNode
 
-  visit(opDef.selectionSet, {
+  const nextSelectionSet = visit(opDef.selectionSet, {
     Variable(node) {
       const {name} = node
       const {value} = name
@@ -46,13 +46,20 @@ const pruneUnused = (doc: DocumentNode, allVariables: Record<string, string>) =>
     FragmentSpread(node) {
       const {name} = node
       const {value} = name
+      const fragmentDefinition = definitions.find(
+        (definition) => definition.kind === 'FragmentDefinition' && definition.name.value === value,
+      )
+      // the fragmentDefinition may have been removed by pruneLocalTypes
+      if (!fragmentDefinition) return null
       usedFragmentSpreads.add(value)
+      return undefined
     },
   })
 
   const variableDefinitions = opDef.variableDefinitions || []
   const prunedOpDef = {
     ...opDef,
+    selectionSet: nextSelectionSet,
     variableDefinitions: variableDefinitions.filter((varDef) => {
       const {variable} = varDef
       const {name} = variable
