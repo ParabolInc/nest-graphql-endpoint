@@ -8,6 +8,7 @@ import {
   SelectionNode,
   SelectionSetNode,
   VariableDefinitionNode,
+  visit,
 } from 'graphql'
 import {AliasMapper, Variables} from './types'
 
@@ -74,9 +75,7 @@ const addNewVariableDefinitions_ = (
     const {variable} = curVarDef
     const {name} = variable
     const {value: varDefName} = name
-    const isPresent = baseVarDefs.find((varDef) =>
-      varDef.variable.name.value === varDefName
-    )
+    const isPresent = baseVarDefs.find((varDef) => varDef.variable.name.value === varDefName)
     if (!isPresent) {
       baseVarDefs.push(curVarDef)
     }
@@ -138,7 +137,7 @@ const addNewSelections_ = (
 
 const addNewOperationDefinition_ = (
   baseDefinitions: DefinitionNode[],
-  definition: DefinitionNode,
+  definition: OperationDefinitionNode,
   aliasIdx: number,
   aliasMapper: AliasMapper,
   isMutation: boolean,
@@ -162,6 +161,59 @@ const addNewOperationDefinition_ = (
   addNewSelections_(baseSelections, selections, aliasIdx, aliasMapper, isMutation)
 }
 
+const aliasDocVariables_ = (
+  execParams: CachedExecParams,
+  aliasIdx: number,
+  baseVariables: Variables,
+) => {
+  // mutates the baseVariables
+  const {document, variables} = execParams
+  const varDefMapper = {} as {
+    [oldName: string]: string
+  }
+  Object.keys(variables).forEach((varName) => {
+    const value = variables[varName]
+    const baseValue = baseVariables[varName]
+    if (baseValue === undefined) {
+      baseVariables[varName] = value
+    } else if (value !== baseValue) {
+      // reuse a variable name with the same value
+      const reusedEntry = Object.entries(baseVariables).find(
+        ([existingValue]) => existingValue === value,
+      )
+      if (reusedEntry) {
+        varDefMapper[varName] = reusedEntry[0]
+      } else {
+        let newVarName = `${varName}_${aliasIdx}`
+        while (newVarName in baseVariables) {
+          newVarName = `${newVarName}X`
+        }
+        // create a new variable name
+        baseVariables[newVarName] = value
+        // schedule that variable to be added to the varDefs
+        varDefMapper[varName] = newVarName
+      }
+    }
+  })
+  if (Object.keys(varDefMapper).length === 0) return document
+  return visit(document, {
+    Variable: (node) => {
+      const {name} = node
+      const {value} = name
+      if (value in varDefMapper) {
+        return {
+          ...node,
+          name: {
+            ...name,
+            value: varDefMapper[value],
+          },
+        }
+      }
+      return undefined
+    },
+  }) as DocumentNode
+}
+
 const mergeGQLDocuments = (cachedExecParams: CachedExecParams[], isMutation?: boolean) => {
   if (cachedExecParams.length === 1) {
     return {
@@ -171,12 +223,12 @@ const mergeGQLDocuments = (cachedExecParams: CachedExecParams[], isMutation?: bo
   }
   const aliasMappers = [] as AliasMapper[]
   const baseDefinitions = [] as DefinitionNode[]
-  const baseVariables = {}
-
+  const baseVariables = {} as Variables
   cachedExecParams.forEach((execParams, aliasIdx) => {
     const aliasMapper = {}
-    const {document, variables} = execParams
-    const {definitions} = document
+    const aliasedVarsDoc = aliasDocVariables_(execParams, aliasIdx, baseVariables)
+    const {definitions} = aliasedVarsDoc
+
     definitions.forEach((definition) => {
       if (definition.kind === 'OperationDefinition') {
         addNewOperationDefinition_(baseDefinitions, definition, aliasIdx, aliasMapper, !!isMutation)
@@ -184,7 +236,6 @@ const mergeGQLDocuments = (cachedExecParams: CachedExecParams[], isMutation?: bo
         addNewFragmentDefinition_(baseDefinitions, definition)
       }
     })
-    Object.assign(baseVariables, variables)
     aliasMappers.push(aliasMapper)
   })
   const mergedDoc = {
