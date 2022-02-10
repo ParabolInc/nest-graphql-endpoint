@@ -4,13 +4,14 @@ import {
   FieldNode,
   FragmentDefinitionNode,
   OperationDefinitionNode,
-  print,
   SelectionNode,
   SelectionSetNode,
   VariableDefinitionNode,
   visit,
 } from 'graphql'
-import {AliasMapper, Variables} from './types'
+import areArgsEqual from './areArgsEqual'
+import areDirectivesEqual from './areDirectivesEqual'
+import {AliasMap, Variables} from './types'
 
 interface MutableSelectionSetNode extends SelectionSetNode {
   selections: SelectionSetNode['selections'][0][]
@@ -24,47 +25,6 @@ interface BaseOperationDefinitionNode extends OperationDefinitionNode {
 interface CachedExecParams {
   document: DocumentNode
   variables: Variables
-}
-
-const addNewFragmentDefinition_ = (
-  baseDefinitions: DefinitionNode[],
-  definition: FragmentDefinitionNode,
-) => {
-  const {name} = definition
-  const {value: definitionName} = name
-  const baseFragmentNames = new Set<string>()
-  baseDefinitions.forEach((definition) => {
-    if (definition.kind === 'FragmentDefinition') {
-      baseFragmentNames.add(definition.name.value)
-    }
-  })
-  if (!baseFragmentNames.has(definitionName)) {
-    baseDefinitions.push(definition)
-  }
-}
-
-const getSelectionNamesAndAliases = (selections: SelectionNode[]) => {
-  const usedNames = new Set<string>()
-  selections.forEach((selection) => {
-    if (selection.kind !== 'Field') return
-    const key = selection.alias?.value ?? selection.name.value
-    usedNames.add(key)
-  })
-  return usedNames
-}
-
-const gqlNodesAreEqual = (leftNode: FieldNode, rightNode: FieldNode) => {
-  return print(leftNode) === print(rightNode)
-}
-
-const aliasFieldNode = (node: FieldNode, alias: string) => {
-  return {
-    ...node,
-    alias: {
-      kind: 'Name',
-      value: alias,
-    },
-  } as FieldNode
 }
 
 const addNewVariableDefinitions_ = (
@@ -82,65 +42,130 @@ const addNewVariableDefinitions_ = (
   })
 }
 
-const addNewSelections_ = (
-  baseSelections: SelectionNode[],
-  selections: SelectionNode[],
+const getMergedSelections = (
+  baseSelections: readonly SelectionNode[],
+  newSelections: readonly SelectionNode[],
+  definitions: readonly DefinitionNode[],
+  aliasMap: AliasMap,
   aliasIdx: number,
-  aliasMapper: AliasMapper,
+  isSuffixRequired: boolean,
   isMutation: boolean,
 ) => {
-  selections.forEach((selection) => {
-    if (selection.kind === 'InlineFragment') {
+  const nextSelections = [...baseSelections]
+  newSelections.forEach((newSelection) => {
+    if (newSelection.kind === 'InlineFragment') {
       // GQL engine will dedupe if there are multiple that are exactly the same
-      baseSelections.push(selection)
-      return
-    }
-    const {name} = selection
-    const {value: selectionName} = name
-    if (selection.kind === 'FragmentSpread') {
-      // if it's a new fragment spread, add it, else ignore
-      const existingFrag = baseSelections.find(
-        (selection) =>
-          selection.kind === 'FragmentSpread' && selection.name.value === selectionName,
+      // we must prefix everything inside
+      // the alternative is deeply traversing every other fragment & their fragments to ensure no name collisions
+      const mergedInlineFragmentSelections = getMergedSelections(
+        [],
+        newSelection.selectionSet.selections,
+        definitions,
+        aliasMap,
+        aliasIdx,
+        true,
+        false,
       )
-      if (!existingFrag) {
-        baseSelections.push(selection)
+      newSelection.selectionSet.selections = mergedInlineFragmentSelections
+      nextSelections.push(newSelection)
+      return
+    }
+    if (newSelection.kind === 'FragmentSpread') {
+      // if it's a new fragment spread, add it, else ignore
+      const matchingFrag = nextSelections.find(
+        (s) => s.kind === 'FragmentSpread' && s.name.value === newSelection.name.value,
+      )
+      if (!matchingFrag) {
+        nextSelections.push(newSelection)
       }
+      const fragDef = definitions.find(
+        (def) => def.kind === 'FragmentDefinition' && def.name.value === newSelection.name.value,
+      ) as FragmentDefinitionNode
+      const fragDefSelections = fragDef.selectionSet.selections
+      // When new selections are equal to old selections, only aliasMap will be updated
+      getMergedSelections(
+        fragDefSelections,
+        fragDefSelections,
+        definitions,
+        aliasMap,
+        aliasIdx,
+        true,
+        false,
+      )
       return
     }
+    const {
+      selectionSet,
+      arguments: newFieldArgs,
+      directives: newFieldDirectives,
+      name,
+      alias,
+    } = newSelection
+    const {value: newFieldName} = name
+    const newFieldKey = alias?.value ?? newFieldName
+    const matchingField = isMutation
+      ? undefined
+      : (nextSelections.find(
+          (s) =>
+            s.kind === 'Field' &&
+            s.name.value === newFieldName &&
+            areArgsEqual(s.arguments, newFieldArgs) &&
+            areDirectivesEqual(s.directives, newFieldDirectives),
+        ) as FieldNode | undefined)
 
-    // if it's a new field node, add it
-    const existingField = baseSelections.find(
-      (selection) => selection.kind === 'Field' && selection.name.value === selectionName,
-    ) as FieldNode
-    if (!existingField) {
-      baseSelections.push(selection)
-      return
+    // map which fields are getting aliased
+    const childAliasMap = Object.create(null) as AliasMap
+    const nextKey = matchingField || !isSuffixRequired ? newFieldKey : `${newFieldKey}_${aliasIdx}`
+    aliasMap[nextKey] = {
+      name: newFieldKey,
+      children: childAliasMap,
     }
 
-    // If this node is already present, don't include it again
-    // Mutations are the exception. we want to run them all
-    if (!isMutation && gqlNodesAreEqual(existingField, selection)) return
-
-    // if the node has the same name but different children or arguments, alias it
-    // there is some high hanging fruit where we could alias the children inside this
-    const usedNames = getSelectionNamesAndAliases(baseSelections)
-    let aliasedName = `${selectionName}_${aliasIdx}`
-    while (usedNames.has(aliasedName)) {
-      aliasedName = `${aliasedName}X`
+    // Add the field if it doesn't exist
+    if (!matchingField) {
+      const nextField = isSuffixRequired
+        ? {
+            ...newSelection,
+            alias: {
+              kind: 'Name' as const,
+              value: nextKey,
+            },
+          }
+        : newSelection
+      nextSelections.push(nextField)
     }
-    const aliasedSelection = aliasFieldNode(selection, aliasedName)
-    aliasMapper[aliasedName] = selection.alias?.value ?? selectionName
-    baseSelections.push(aliasedSelection)
+
+    // Recurse the child selections to prefix names & populate the childAliasMap
+    if (selectionSet) {
+      // matchingField.selectionSet is guaranteed to exist if selectionSet exists
+      const base = matchingField ? matchingField.selectionSet!.selections : []
+      const nextSelections = getMergedSelections(
+        base,
+        selectionSet.selections,
+        definitions,
+        childAliasMap,
+        aliasIdx,
+        // a suffix isn't required for children inside their own suffixed parent
+        !!matchingField,
+        false,
+      )
+      if (matchingField) {
+        matchingField.selectionSet!.selections = nextSelections
+      } else {
+        selectionSet.selections = nextSelections
+      }
+    }
   })
+  return nextSelections
 }
 
 const addNewOperationDefinition_ = (
   baseDefinitions: DefinitionNode[],
   definition: OperationDefinitionNode,
+  definitions: readonly DefinitionNode[],
   aliasIdx: number,
-  aliasMapper: AliasMapper,
   isMutation: boolean,
+  aliasMap: AliasMap,
 ) => {
   const {operation, variableDefinitions, selectionSet} = definition as BaseOperationDefinitionNode
   // add completely new ops
@@ -158,7 +183,15 @@ const addNewOperationDefinition_ = (
 
   // merge selection set
   const {selections} = selectionSet
-  addNewSelections_(baseSelections, selections, aliasIdx, aliasMapper, isMutation)
+  baseSelectionSet.selections = getMergedSelections(
+    baseSelections,
+    selections,
+    definitions,
+    aliasMap,
+    aliasIdx,
+    false,
+    isMutation,
+  )
 }
 
 const aliasDocVariables_ = (
@@ -173,76 +206,87 @@ const aliasDocVariables_ = (
   }
   Object.keys(variables).forEach((varName) => {
     const value = variables[varName]
-    const baseValue = baseVariables[varName]
-    if (baseValue === undefined) {
-      baseVariables[varName] = value
-    } else if (value !== baseValue) {
-      // reuse a variable name with the same value
-      const reusedEntry = Object.entries(baseVariables).find(
-        ([existingValue]) => existingValue === value,
-      )
-      if (reusedEntry) {
-        varDefMapper[varName] = reusedEntry[0]
-      } else {
-        let newVarName = `${varName}_${aliasIdx}`
-        while (newVarName in baseVariables) {
-          newVarName = `${newVarName}X`
-        }
-        // create a new variable name
-        baseVariables[newVarName] = value
-        // schedule that variable to be added to the varDefs
-        varDefMapper[varName] = newVarName
-      }
+    const entryWithSameValue = Object.entries(baseVariables).find((entry) => entry[1] === value)
+    if (entryWithSameValue) {
+      varDefMapper[varName] = entryWithSameValue[0]
+    } else {
+      const suffixedVarName = varName in baseVariables ? `${varName}_${aliasIdx}` : varName
+      baseVariables[suffixedVarName] = value
+      varDefMapper[varName] = suffixedVarName
     }
   })
-  if (Object.keys(varDefMapper).length === 0) return document
+  const nameSort = (a: {name: {value: string}}, b: {name: {value: string}}) =>
+    a.name.value < b.name.value ? -1 : 1
+  const falsyOrEmpty = (node: readonly unknown[] | null | undefined) => !node || node.length === 0
+
   return visit(document, {
+    Field: (node) => {
+      // sort directives & args for easy equality checks later
+      if (falsyOrEmpty(node.arguments) && falsyOrEmpty(node.directives)) return undefined
+      return {
+        ...node,
+        directives: node.directives ? node.directives.slice().sort(nameSort) : node.directives,
+        arguments: node.arguments ? node.arguments.slice().sort(nameSort) : node.arguments,
+      }
+    },
     Variable: (node) => {
       const {name} = node
-      const {value} = name
-      if (value in varDefMapper) {
-        return {
-          ...node,
-          name: {
-            ...name,
-            value: varDefMapper[value],
-          },
-        }
+      const value = varDefMapper[name.value]
+      // TODO if the value is a short number or string, inline it
+      return {
+        ...node,
+        name: {
+          ...name,
+          value,
+        },
       }
-      return undefined
     },
   }) as DocumentNode
 }
 
 const mergeGQLDocuments = (cachedExecParams: CachedExecParams[], isMutation?: boolean) => {
+  const aliasMaps = [] as AliasMap[]
   if (cachedExecParams.length === 1) {
     return {
       ...cachedExecParams[0],
-      aliasMappers: [{}] as AliasMapper[],
+      aliasMaps,
     }
   }
-  const aliasMappers = [] as AliasMapper[]
   const baseDefinitions = [] as DefinitionNode[]
-  const baseVariables = {} as Variables
+  const variables = Object.create(null) as Variables
   cachedExecParams.forEach((execParams, aliasIdx) => {
-    const aliasMapper = {}
-    const aliasedVarsDoc = aliasDocVariables_(execParams, aliasIdx, baseVariables)
+    const aliasedVarsDoc = aliasDocVariables_(execParams, aliasIdx, variables)
     const {definitions} = aliasedVarsDoc
-
+    const aliasMap = Object.create(null) as AliasMap
     definitions.forEach((definition) => {
       if (definition.kind === 'OperationDefinition') {
-        addNewOperationDefinition_(baseDefinitions, definition, aliasIdx, aliasMapper, !!isMutation)
+        addNewOperationDefinition_(
+          baseDefinitions,
+          definition,
+          definitions,
+          aliasIdx,
+          !!isMutation,
+          aliasMap,
+        )
       } else if (definition.kind === 'FragmentDefinition') {
-        addNewFragmentDefinition_(baseDefinitions, definition)
+        // Assumes similarly named fragments are identical
+        // That means no alias necessary & we can reuse across the batch
+        const fragmentName = definition.name.value
+        const matchingFrag = baseDefinitions.find(
+          (def) => def.kind === 'FragmentDefinition' && def.name.value === fragmentName,
+        )
+        if (!matchingFrag) {
+          baseDefinitions.push(definition)
+        }
       }
     })
-    aliasMappers.push(aliasMapper)
+    aliasMaps.push(aliasMap)
   })
   const mergedDoc = {
     kind: 'Document' as const,
     definitions: baseDefinitions,
   }
-  return {document: mergedDoc, variables: baseVariables, aliasMappers}
+  return {document: mergedDoc, variables, aliasMaps}
 }
 
 export default mergeGQLDocuments

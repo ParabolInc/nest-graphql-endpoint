@@ -86,3 +86,10 @@ export interface NestedSource<TContext> {
   errorPromise?: Promise<BaseGraphQLError[] | null | undefined>
   resolveErrors?: (errors: GraphQLEndpointError[] | null | undefined) => void
 }
+
+interface AliasMapEntry {
+  name: string
+  children: AliasMap
+}
+
+export type AliasMap = Record<string, AliasMapEntry>

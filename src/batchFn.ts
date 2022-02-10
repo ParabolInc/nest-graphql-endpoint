@@ -45,14 +45,14 @@ const batchFn = async <TContext extends Record<string, any>>(
       const [firstParam] = execParams
       // context is per-fetch
       const {context} = firstParam
-      const {document, variables, aliasMappers} = mergeGQLDocuments(execParams, isMutation)
+      const {document, variables, aliasMaps} = mergeGQLDocuments(execParams, isMutation)
       const result = await wrappedExecutor(document, variables, endpointTimeout, context)
       const {errors, data} = result
       execParams.forEach((execParam, idx) => {
-        const aliasMapper = aliasMappers[idx]
+        const aliasMap = aliasMaps[idx]
         const {idx: resultsIdx, document} = execParam
         results[resultsIdx] = {
-          data: dealiasResult(data, aliasMapper),
+          data: dealiasResult(data, aliasMap),
           errors: filterErrorsForDocument(document, errors),
         }
       })
