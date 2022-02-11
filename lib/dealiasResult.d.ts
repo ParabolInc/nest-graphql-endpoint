@@ -1,6 +1,3 @@
-import {AliasMapper, EndpointResponseData} from './types'
-declare const dealiasResult: (
-  data: EndpointResponseData,
-  aliasMap: AliasMapper,
-) => EndpointResponseData
-export default dealiasResult
+import { AliasMap } from './types';
+declare const dealiasResult: (data: Record<string, any> | null, aliasMap: AliasMap) => Record<string, any> | null;
+export default dealiasResult;
