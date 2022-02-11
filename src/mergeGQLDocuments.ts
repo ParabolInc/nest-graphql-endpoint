@@ -102,7 +102,10 @@ const getMergedSelections = (
       alias,
     } = newSelection
     const {value: newFieldName} = name
+    // If the client aliased a field, the resulting source data should use that alias as a key
+    // It is up to the wrapped schema to resolve to an aliased value if source[info.fieldName] is not present
     const newFieldKey = alias?.value ?? newFieldName
+    const isInternal = newFieldName.startsWith('__')
     const matchingField = isMutation
       ? undefined
       : (nextSelections.find(
@@ -115,7 +118,8 @@ const getMergedSelections = (
 
     // map which fields are getting aliased
     const childAliasMap = Object.create(null) as AliasMap
-    const nextKey = matchingField || !isSuffixRequired ? newFieldKey : `${newFieldKey}_${aliasIdx}`
+    const nextKey =
+      matchingField || !isSuffixRequired || isInternal ? newFieldKey : `${newFieldKey}_${aliasIdx}`
     aliasMap[nextKey] = {
       name: newFieldKey,
       children: childAliasMap,
@@ -169,15 +173,23 @@ const addNewOperationDefinition_ = (
 ) => {
   const {operation, variableDefinitions, selectionSet} = definition as BaseOperationDefinitionNode
   // add completely new ops
-  const matchingOp = baseDefinitions.find(
+  let matchingOp = baseDefinitions.find(
     (curDef) => curDef.kind === 'OperationDefinition' && curDef.operation === operation,
-  ) as BaseOperationDefinitionNode
+  )
+  // create an empty version so the first execParams can crawl & map
   if (!matchingOp) {
-    baseDefinitions.push(definition)
-    return
+    matchingOp = {
+      ...definition,
+      selectionSet: {
+        ...definition.selectionSet,
+        selections: [],
+      },
+    }
+    baseDefinitions.push(matchingOp)
   }
   // merge var defs
-  const {variableDefinitions: baseVarDefs, selectionSet: baseSelectionSet} = matchingOp
+  const {variableDefinitions: baseVarDefs, selectionSet: baseSelectionSet} =
+    matchingOp as BaseOperationDefinitionNode
   const {selections: baseSelections} = baseSelectionSet
   addNewVariableDefinitions_(baseVarDefs, variableDefinitions)
 
@@ -246,12 +258,6 @@ const aliasDocVariables_ = (
 
 const mergeGQLDocuments = (cachedExecParams: CachedExecParams[], isMutation?: boolean) => {
   const aliasMaps = [] as AliasMap[]
-  if (cachedExecParams.length === 1) {
-    return {
-      ...cachedExecParams[0],
-      aliasMaps,
-    }
-  }
   const baseDefinitions = [] as DefinitionNode[]
   const variables = Object.create(null) as Variables
   cachedExecParams.forEach((execParams, aliasIdx) => {

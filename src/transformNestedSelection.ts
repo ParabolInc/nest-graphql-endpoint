@@ -4,10 +4,10 @@ import {
   FragmentDefinitionNode,
   GraphQLResolveInfo,
   OperationDefinitionNode,
-  visit
+  visit,
 } from 'graphql'
 import pruneInterfaces from './pruneInterfaces'
-import { Variables } from './types'
+import {Variables} from './types'
 
 // Transform the info fieldNodes into a standalone document AST
 const transformInfoIntoDoc = (info: GraphQLResolveInfo) => {
@@ -20,7 +20,10 @@ const transformInfoIntoDoc = (info: GraphQLResolveInfo) => {
         variableDefinitions: info.operation.variableDefinitions || [],
         selectionSet: {
           kind: 'SelectionSet',
-          selections: info.fieldNodes.flatMap(({selectionSet}) => selectionSet!.selections),
+          // probably a cleaner way to go about this...
+          selections: JSON.parse(
+            JSON.stringify(info.fieldNodes.flatMap(({selectionSet}) => selectionSet!.selections)),
+          ),
         },
       },
       ...Object.values(info.fragments || {}),
