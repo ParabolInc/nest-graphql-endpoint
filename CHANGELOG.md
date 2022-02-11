@@ -1,5 +1,15 @@
 # nest-graphql-endpoint
 
+## 0.4.0
+
+### Fixed
+
+- Variable merging bug
+
+### Added
+
+- Deeply nested merging (polynomial improvement in request cost)
+
 ## 0.3.3
 
 ### Fixed

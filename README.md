@@ -20,7 +20,6 @@ Now, you want to get their name from your app & their bio from GitHub.
 You also want the bio of all their friends, too.
 This package will let you write the following query:
 
-
 ```gql
 query {
   user(id: 'abc') {
@@ -78,14 +77,14 @@ return nestGraphQLEndpoint({
     // Example executor fn not for production! See nestGitHubEndpoint for a production-ready executor
     return fetch('https://foo.co', {
       headers: {
-        Authorization: `Bearer ${context.accessToken}`
+        Authorization: `Bearer ${context.accessToken}`,
       },
-      body: JSON.stringify({query: print(document), variables })
+      body: JSON.stringify({query: print(document), variables}),
     })
   },
   prefix: '_extEndpoint',
   batchKey: 'accessToken',
-  schemaIDL
+  schemaIDL,
 })
 ```
 
@@ -103,7 +102,10 @@ return nestGitHubEndpoint({
   fieldName: 'github',
   // Assumes a `githubToken` is on the User object
   // GitHub preview is being phased out, but still requires a custom header to access preview features
-  resolveEndpointContext: (source) => ({accessToken: source.githubToken, headers: {'Accept': 'application/vnd.github.bane-preview+json'}})
+  resolveEndpointContext: (source) => ({
+    accessToken: source.githubToken,
+    headers: {Accept: 'application/vnd.github.bane-preview+json'},
+  }),
 }).schema
 ```
 
@@ -179,6 +181,7 @@ const todoResolver = (source, args, context, info) => {
   }
 }
 ```
+
 ### How it works
 
 1. It extends your schema with a type that contains `{errors, query, mutation}`
@@ -188,6 +191,10 @@ const todoResolver = (source, args, context, info) => {
 5. In the event of a name conflict, it will alias fields before the request is fetched.
 6. When the endpoint responds, it will de-alias the response, re-apply the `__typename` prefix, and filter the errors by path
 7. For field resolvers, it removes any types that don't exist on the endpoint & then sends the request.
+
+### Limnitations
+
+- FragmentDefinitions are assumed equal if they have matching names (Relay compiler guarantees this)
 
 ### License
 

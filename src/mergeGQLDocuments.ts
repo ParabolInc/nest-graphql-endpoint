@@ -3,6 +3,7 @@ import {
   DocumentNode,
   FieldNode,
   FragmentDefinitionNode,
+  InlineFragmentNode,
   OperationDefinitionNode,
   SelectionNode,
   SelectionSetNode,
@@ -52,37 +53,61 @@ const getMergedSelections = (
   isMutation: boolean,
 ) => {
   const nextSelections = [...baseSelections]
+  const upsertFields = <T extends InlineFragmentNode | FieldNode>(
+    existingSelection: T | undefined,
+    newSelection: T,
+    childAliasMap: AliasMap,
+  ) => {
+    const base = existingSelection?.selectionSet?.selections ?? []
+    // guaranteed to have a selectionSet if the existingSelection does
+    const newSelectionSet = newSelection.selectionSet!
+    const updatedSelections = getMergedSelections(
+      base,
+      newSelectionSet.selections,
+      definitions,
+      childAliasMap,
+      aliasIdx,
+      // a suffix isn't required for children inside their own suffixed parent
+      !!existingSelection,
+      false,
+    )
+    if (existingSelection) {
+      existingSelection.selectionSet!.selections = updatedSelections
+      return false
+    }
+    newSelectionSet.selections = updatedSelections
+    return true
+  }
   newSelections.forEach((newSelection) => {
     if (newSelection.kind === 'InlineFragment') {
-      // GQL engine will dedupe if there are multiple that are exactly the same
-      // we must prefix everything inside
-      // the alternative is deeply traversing every other fragment & their fragments to ensure no name collisions
-      const mergedInlineFragmentSelections = getMergedSelections(
-        [],
-        newSelection.selectionSet.selections,
-        definitions,
-        aliasMap,
-        aliasIdx,
-        true,
-        false,
-      )
-      newSelection.selectionSet.selections = mergedInlineFragmentSelections
-      nextSelections.push(newSelection)
+      // if there's an existing inline fragment with the type condition & directives
+      // use that instead, just suffix all the fields
+      const typeCondition = newSelection.typeCondition?.name.value
+      const existingInlineFragment = nextSelections.find(
+        (s) =>
+          s.kind === 'InlineFragment' &&
+          s.typeCondition?.name.value === typeCondition &&
+          areDirectivesEqual(s.directives, newSelection.directives),
+      ) as InlineFragmentNode | undefined
+      const isInsert = upsertFields(existingInlineFragment, newSelection, aliasMap)
+      if (isInsert) {
+        nextSelections.push(newSelection)
+      }
       return
     }
     if (newSelection.kind === 'FragmentSpread') {
       // if it's a new fragment spread, add it, else ignore
-      const matchingFrag = nextSelections.find(
+      const existingFrag = nextSelections.find(
         (s) => s.kind === 'FragmentSpread' && s.name.value === newSelection.name.value,
       )
-      if (!matchingFrag) {
+      if (!existingFrag) {
         nextSelections.push(newSelection)
       }
       const fragDef = definitions.find(
         (def) => def.kind === 'FragmentDefinition' && def.name.value === newSelection.name.value,
       ) as FragmentDefinitionNode
       const fragDefSelections = fragDef.selectionSet.selections
-      // When new selections are equal to old selections, only aliasMap will be updated
+      // Update the aliasMap by traversing the children
       getMergedSelections(
         fragDefSelections,
         fragDefSelections,
@@ -102,11 +127,12 @@ const getMergedSelections = (
       alias,
     } = newSelection
     const {value: newFieldName} = name
-    // If the client aliased a field, the resulting source data should use that alias as a key
-    // It is up to the wrapped schema to resolve to an aliased value if source[info.fieldName] is not present
-    const newFieldKey = alias?.value ?? newFieldName
     const isInternal = newFieldName.startsWith('__')
-    const matchingField = isMutation
+    // If the client aliased a field, the response will use that alias
+    // If the response is to be used as the source in a resolve function, you must resolve to the alias
+    // E.g. source[info.fieldNodes[0].alias?.value ?? info.fieldName]
+    const requestedFieldName = alias?.value ?? newFieldName
+    const existingField = isMutation
       ? undefined
       : (nextSelections.find(
           (s) =>
@@ -118,47 +144,35 @@ const getMergedSelections = (
 
     // map which fields are getting aliased
     const childAliasMap = Object.create(null) as AliasMap
-    const nextKey =
-      matchingField || !isSuffixRequired || isInternal ? newFieldKey : `${newFieldKey}_${aliasIdx}`
-    aliasMap[nextKey] = {
-      name: newFieldKey,
+    let endpointResponseFieldName: string
+    if (existingField) {
+      // reuse the existing field (add our own child selections to it later)
+      endpointResponseFieldName = existingField.alias?.value ?? existingField.name.value
+    } else if (!isSuffixRequired || isInternal) {
+      // there's no existing field, so we're going to add a new one
+      // that new one doesn't need a suffix because this execution created the parent node
+      // or .e.g. __typename field never needs a suffix since it'll always be a String!
+      endpointResponseFieldName = requestedFieldName
+      nextSelections.push(newSelection)
+    } else {
+      // suffix this because we're in the parent of another execution
+      endpointResponseFieldName = `${requestedFieldName}_${aliasIdx}`
+      nextSelections.push({
+        ...newSelection,
+        alias: {
+          kind: 'Name' as const,
+          value: endpointResponseFieldName,
+        },
+      })
+    }
+
+    aliasMap[endpointResponseFieldName] = {
+      name: requestedFieldName,
       children: childAliasMap,
     }
-
-    // Add the field if it doesn't exist
-    if (!matchingField) {
-      const nextField = isSuffixRequired
-        ? {
-            ...newSelection,
-            alias: {
-              kind: 'Name' as const,
-              value: nextKey,
-            },
-          }
-        : newSelection
-      nextSelections.push(nextField)
-    }
-
-    // Recurse the child selections to prefix names & populate the childAliasMap
-    if (selectionSet) {
-      // matchingField.selectionSet is guaranteed to exist if selectionSet exists
-      const base = matchingField ? matchingField.selectionSet!.selections : []
-      const nextSelections = getMergedSelections(
-        base,
-        selectionSet.selections,
-        definitions,
-        childAliasMap,
-        aliasIdx,
-        // a suffix isn't required for children inside their own suffixed parent
-        !!matchingField,
-        false,
-      )
-      if (matchingField) {
-        matchingField.selectionSet!.selections = nextSelections
-      } else {
-        selectionSet.selections = nextSelections
-      }
-    }
+    if (!selectionSet) return
+    // Recurse the child selections to suffix names & populate the childAliasMap
+    upsertFields(existingField, newSelection, childAliasMap)
   })
   return nextSelections
 }
@@ -278,10 +292,10 @@ const mergeGQLDocuments = (cachedExecParams: CachedExecParams[], isMutation?: bo
         // Assumes similarly named fragments are identical
         // That means no alias necessary & we can reuse across the batch
         const fragmentName = definition.name.value
-        const matchingFrag = baseDefinitions.find(
+        const existingFrag = baseDefinitions.find(
           (def) => def.kind === 'FragmentDefinition' && def.name.value === fragmentName,
         )
-        if (!matchingFrag) {
+        if (!existingFrag) {
           baseDefinitions.push(definition)
         }
       }
