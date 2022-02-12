@@ -145,12 +145,18 @@ const getMergedSelections = (
     // map which fields are getting aliased
     const childAliasMap = Object.create(null) as AliasMap
     let endpointResponseFieldName: string
+    const isRequestedFieldNameFree = () => {
+      return !nextSelections.find((s) => {
+        return s.kind === 'Field' && requestedFieldName === (s.alias?.value ?? s.name.value)
+      })
+    }
     if (existingField) {
       // reuse the existing field (add our own child selections to it later)
       endpointResponseFieldName = existingField.alias?.value ?? existingField.name.value
-    } else if (!isSuffixRequired || isInternal) {
+    } else if (isInternal || (!isSuffixRequired && isRequestedFieldNameFree())) {
       // there's no existing field, so we're going to add a new one
       // that new one doesn't need a suffix because this execution created the parent node
+      // Unless some other field has the same name as the one we're trying to add
       // or .e.g. __typename field never needs a suffix since it'll always be a String!
       endpointResponseFieldName = requestedFieldName
       nextSelections.push(newSelection)

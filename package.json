@@ -1,7 +1,7 @@
 {
   "name": "nest-graphql-endpoint",
   "author": "Matt Krick <matt.krick@gmail.com>",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Nest an external GraphQL Endpoint",
   "repository": {
     "type": "git",

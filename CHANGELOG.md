@@ -1,5 +1,11 @@
 # nest-graphql-endpoint
 
+## 0.4.1
+
+### Fixed
+
+- unsuffixed naming collisio
+
 ## 0.4.0
 
 ### Fixed
