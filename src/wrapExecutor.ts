@@ -1,24 +1,21 @@
-import renameResponseTypenames_ from './renameResponseTypenames_'
 import {Executor} from './types'
 
-const wrapExecutor = <TContext>(
-  executor: Executor<TContext>,
-  prefix: string,
-): Executor<TContext> => async (document, variables, endpointTimeout, context) => {
-  try {
-    const response = await executor(document, variables, endpointTimeout, context)
-    renameResponseTypenames_(response, prefix)
-    return response
-  } catch (e) {
-    return {
-      data: null,
-      errors: [
-        {
-          message: (e as any)?.message ?? `${prefix}: Executor failed`,
-        },
-      ],
+const wrapExecutor =
+  <TContext>(executor: Executor<TContext>): Executor<TContext> =>
+  async (document, variables, endpointTimeout, context) => {
+    try {
+      const response = await executor(document, variables, endpointTimeout, context)
+      return response
+    } catch (e) {
+      return {
+        data: null,
+        errors: [
+          {
+            message: (e as any)?.message ?? `nesting executor failed`,
+          },
+        ],
+      }
     }
   }
-}
 
 export default wrapExecutor

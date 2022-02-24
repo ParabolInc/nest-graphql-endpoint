@@ -2,6 +2,7 @@ import {DocumentNode} from 'graphql'
 import dealiasResult from './dealiasResult'
 import filterErrorsForDocument from './filterErrorsForDocument'
 import mergeGQLDocuments from './mergeGQLDocuments'
+import renameResponseTypenames_ from './renameResponseTypenames_'
 import {DataLoaderKey, EndpointExecutionResult, Variables} from './types'
 import wrapExecutor from './wrapExecutor'
 
@@ -21,7 +22,7 @@ const batchFn = async <TContext extends Record<string, any>>(
   const [firstKey] = keys
   const {options} = firstKey
   const {batchKey, endpointTimeout, executor, isMutation, prefix} = options
-  const wrappedExecutor = wrapExecutor(executor, prefix)
+  const wrappedExecutor = wrapExecutor(executor)
   const execParamsByToken = keys.reduce((obj, key, idx) => {
     const {context} = key
     const accessToken = context[batchKey]
@@ -47,6 +48,7 @@ const batchFn = async <TContext extends Record<string, any>>(
       const {context} = firstParam
       const {document, variables, aliasMaps} = mergeGQLDocuments(execParams, isMutation)
       const result = await wrappedExecutor(document, variables, endpointTimeout, context)
+      renameResponseTypenames_(result.data, prefix, aliasMaps)
       const {errors, data} = result
       execParams.forEach((execParam, idx) => {
         const aliasMap = aliasMaps[idx]
