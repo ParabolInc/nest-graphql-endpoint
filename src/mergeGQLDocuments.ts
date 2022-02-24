@@ -8,8 +8,8 @@ import {
   SelectionNode,
   SelectionSetNode,
   VariableDefinitionNode,
-  visit,
 } from 'graphql'
+import aliasDocVariables_ from './aliasDocVariables_'
 import areArgsEqual from './areArgsEqual'
 import areDirectivesEqual from './areDirectivesEqual'
 import {AliasMap, Variables} from './types'
@@ -224,56 +224,6 @@ const addNewOperationDefinition_ = (
     false,
     isMutation,
   )
-}
-
-const aliasDocVariables_ = (
-  execParams: CachedExecParams,
-  aliasIdx: number,
-  baseVariables: Variables,
-) => {
-  // mutates the baseVariables
-  const {document, variables} = execParams
-  const varDefMapper = {} as {
-    [oldName: string]: string
-  }
-  Object.keys(variables).forEach((varName) => {
-    const value = variables[varName]
-    const entryWithSameValue = Object.entries(baseVariables).find((entry) => entry[1] === value)
-    if (entryWithSameValue) {
-      varDefMapper[varName] = entryWithSameValue[0]
-    } else {
-      const suffixedVarName = varName in baseVariables ? `${varName}_${aliasIdx}` : varName
-      baseVariables[suffixedVarName] = value
-      varDefMapper[varName] = suffixedVarName
-    }
-  })
-  const nameSort = (a: {name: {value: string}}, b: {name: {value: string}}) =>
-    a.name.value < b.name.value ? -1 : 1
-  const falsyOrEmpty = (node: readonly unknown[] | null | undefined) => !node || node.length === 0
-
-  return visit(document, {
-    Field: (node) => {
-      // sort directives & args for easy equality checks later
-      if (falsyOrEmpty(node.arguments) && falsyOrEmpty(node.directives)) return undefined
-      return {
-        ...node,
-        directives: node.directives ? node.directives.slice().sort(nameSort) : node.directives,
-        arguments: node.arguments ? node.arguments.slice().sort(nameSort) : node.arguments,
-      }
-    },
-    Variable: (node) => {
-      const {name} = node
-      const value = varDefMapper[name.value]
-      // TODO if the value is a short number or string, inline it
-      return {
-        ...node,
-        name: {
-          ...name,
-          value,
-        },
-      }
-    },
-  }) as DocumentNode
 }
 
 const mergeGQLDocuments = (cachedExecParams: CachedExecParams[], isMutation?: boolean) => {

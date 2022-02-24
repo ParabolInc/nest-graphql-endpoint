@@ -1,3 +1,3 @@
 import { Executor } from './types';
-declare const wrapExecutor: <TContext>(executor: Executor<TContext>, prefix: string) => Executor<TContext>;
+declare const wrapExecutor: <TContext>(executor: Executor<TContext>) => Executor<TContext>;
 export default wrapExecutor;

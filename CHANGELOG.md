@@ -1,5 +1,13 @@
 # nest-graphql-endpoint
 
+## 0.4.2
+
+## Fixed
+
+- client-aliased \_\_typename field re-prefixing
+- remove duplicate variable definitions for shared variables
+- Support directives on variable definitions
+
 ## 0.4.1
 
 ### Fixed
