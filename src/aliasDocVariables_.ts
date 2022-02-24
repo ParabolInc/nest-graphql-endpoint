@@ -10,7 +10,7 @@ const getVarsAndDefMapper_ = (
   variableDefinitions: readonly VariableDefinitionNode[],
   baseVariables: Variables,
   variables: Variables,
-  aliasIdx: number
+  aliasIdx: number,
 ) => {
   // adds new variables to baseVariables and returns the new names of the variables
   const varDefMapper = {} as {
@@ -41,20 +41,20 @@ const getVarsAndDefMapper_ = (
 const aliasDocVariables_ = (
   execParams: CachedExecParams,
   aliasIdx: number,
-  baseVariables: Variables
+  baseVariables: Variables,
 ) => {
   // mutates the baseVariables
   const {document, variables} = execParams
 
   const operationDef = document.definitions.find(
-    (def) => def.kind === 'OperationDefinition'
+    (def) => def.kind === 'OperationDefinition',
   ) as OperationDefinitionNode
   const {variableDefinitions} = operationDef
   const varDefMapper = getVarsAndDefMapper_(
     variableDefinitions!,
     baseVariables,
     variables,
-    aliasIdx
+    aliasIdx,
   )
 
   const nameSort = (a: {name: {value: string}}, b: {name: {value: string}}) =>
@@ -68,7 +68,7 @@ const aliasDocVariables_ = (
       return {
         ...node,
         directives: node.directives ? node.directives.slice().sort(nameSort) : node.directives,
-        arguments: node.arguments ? node.arguments.slice().sort(nameSort) : node.arguments
+        arguments: node.arguments ? node.arguments.slice().sort(nameSort) : node.arguments,
       }
     },
     Variable: (node) => {
@@ -78,15 +78,15 @@ const aliasDocVariables_ = (
         ...node,
         name: {
           ...name,
-          value
-        }
+          value,
+        },
       }
     },
     leave: {
       OperationDefinition: (node) => {
         const {variableDefinitions} = node
         if (!variableDefinitions) return undefined
-        const usedVariableDefNames = new Set()
+        const usedVariableDefNames = new Set<string>()
         return {
           ...node,
           // if var1 and var2 both had the value of foo, change var2 references to var1 (in "Variable" visitor above)
@@ -94,13 +94,14 @@ const aliasDocVariables_ = (
           variableDefinitions: variableDefinitions.filter((varDef) => {
             const {variable} = varDef
             const {name} = variable
-            if (usedVariableDefNames.has(name)) return false
-            usedVariableDefNames.add(name)
+            const {value: varName} = name
+            if (usedVariableDefNames.has(varName)) return false
+            usedVariableDefNames.add(varName)
             return true
-          })
+          }),
         }
-      }
-    }
+      },
+    },
   }) as DocumentNode
 }
 

@@ -1,5 +1,11 @@
 # nest-graphql-endpoint
 
+## 0.4.3
+
+## Fixed
+
+- Check duplicates by name value
+
 ## 0.4.2
 
 ## Fixed

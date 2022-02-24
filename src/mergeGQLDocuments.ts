@@ -36,8 +36,8 @@ const addNewVariableDefinitions_ = (
     const {variable} = curVarDef
     const {name} = variable
     const {value: varDefName} = name
-    const isPresent = baseVarDefs.find((varDef) => varDef.variable.name.value === varDefName)
-    if (!isPresent) {
+    const isNameConflict = baseVarDefs.find((varDef) => varDef.variable.name.value === varDefName)
+    if (!isNameConflict) {
       baseVarDefs.push(curVarDef)
     }
   })
