@@ -1,5 +1,11 @@
 # nest-graphql-endpoint
 
+## 0.4.4
+
+## Fixed
+
+- Disallow double prefixing on rehydration
+
 ## 0.4.3
 
 ## Fixed

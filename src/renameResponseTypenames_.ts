@@ -6,7 +6,7 @@ const renameResponseTypenames = (
   aliasMaps: AliasMap[],
 ) => {
   if (!response) return
-  const prefixTypename = (name: string) => `${prefix}${name}`
+  const prefixTypename = (name: string) => (name.startsWith(prefix) ? name : `${prefix}${name}`)
   const transformObject_ = (parent: Record<string, any>, aliasMap: AliasMap) => {
     Object.keys(aliasMap).forEach((key) => {
       const val = parent[key]
