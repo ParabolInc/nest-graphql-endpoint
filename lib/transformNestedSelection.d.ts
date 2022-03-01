@@ -1,6 +1,6 @@
-import { DocumentNode, FragmentDefinitionNode, GraphQLResolveInfo } from 'graphql';
+import { DocumentNode, FragmentDefinitionNode, GraphQLResolveInfo, GraphQLSchema } from 'graphql';
 import { Variables } from './types';
-declare const transformNestedSelection: (info: GraphQLResolveInfo, prefix: string, wrapper?: DocumentNode | undefined) => {
+declare const transformNestedSelection: (schema: GraphQLSchema, info: GraphQLResolveInfo, prefix: string, wrapper?: DocumentNode | undefined) => {
     document: DocumentNode;
     variables: Variables;
     wrappedPath: undefined;
