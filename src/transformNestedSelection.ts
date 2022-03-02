@@ -113,8 +113,8 @@ const unprefixTypes = (document: DocumentNode, prefix: string) => {
 const pruneExtendedFields = (schema: GraphQLSchema, document: DocumentNode): DocumentNode => {
   const typeInfo = new TypeInfo(schema)
   return visit(document, visitWithTypeInfo(typeInfo, {
-    Field(node) {
-      return typeInfo.getFieldDef() ? node : null
+    Field() {
+      return typeInfo.getFieldDef() ? undefined : null
     }
   }))
 }
