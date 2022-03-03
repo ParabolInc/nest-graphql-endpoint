@@ -1,5 +1,10 @@
 # nest-graphql-endpoint
 
+## 0.5.0
+
+### Added
+- Automatically remove fields that don't belong in the endpoint
+
 ## 0.4.4
 
 ## Fixed
