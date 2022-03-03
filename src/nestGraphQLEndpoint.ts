@@ -19,10 +19,11 @@ const nestGraphQLEndpoint = <TContext>(params: NestGraphQLEndpointParams<TContex
     endpointTimeout = 10000,
   } = params
   const prefixEndpoint = (name: string) => `${prefix}${name}`
+  const schema = makeExecutableSchema({
+    typeDefs: schemaIDL,
+  })
   const transformedEndpointSchema = wrapSchema({
-    schema: makeExecutableSchema({
-      typeDefs: schemaIDL,
-    }),
+    schema,
     createProxyingResolver: () => (
       parent: any,
       _args: any,
@@ -42,7 +43,7 @@ const nestGraphQLEndpoint = <TContext>(params: NestGraphQLEndpointParams<TContex
     const {context, wrapper, wrapperVars} = source
     let transform: ReturnType<typeof transformNestedSelection>
     try {
-      transform = transformNestedSelection(info, prefix, wrapper)
+      transform = transformNestedSelection(schema, info, prefix, wrapper)
     } catch (e) {
       const errors = [{message: e.message || 'Transform error'}]
       if (source.resolveErrors) {
