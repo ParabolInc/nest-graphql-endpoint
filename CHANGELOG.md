@@ -1,5 +1,9 @@
 # nest-graphql-endpoint
 
+## 0.5.1
+
+### Fixed
+- pruneExtended after wrapper gets merged into place
 ## 0.5.0
 
 ### Added

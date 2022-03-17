@@ -7,10 +7,10 @@ import {
   OperationDefinitionNode,
   TypeInfo,
   visit,
-  visitWithTypeInfo,
+  visitWithTypeInfo
 } from 'graphql'
 import pruneInterfaces from './pruneInterfaces'
-import {Variables} from './types'
+import { Variables } from './types'
 
 // Transform the info fieldNodes into a standalone document AST
 const transformInfoIntoDoc = (info: GraphQLResolveInfo) => {
@@ -112,11 +112,14 @@ const unprefixTypes = (document: DocumentNode, prefix: string) => {
 // If the nested schema was extended, those types can appear in the selection set but should not be sent to the endpoint
 const pruneExtendedFields = (schema: GraphQLSchema, document: DocumentNode): DocumentNode => {
   const typeInfo = new TypeInfo(schema)
-  return visit(document, visitWithTypeInfo(typeInfo, {
-    Field() {
-      return typeInfo.getFieldDef() ? undefined : null
-    }
-  }))
+  return visit(
+    document,
+    visitWithTypeInfo(typeInfo, {
+      Field() {
+        return typeInfo.getFieldDef() ? undefined : null
+      },
+    }),
+  )
 }
 
 const MAGIC_FRAGMENT_NAME = 'info'
@@ -196,13 +199,15 @@ const transformNestedSelection = (
   const fieldNodesDoc = transformInfoIntoDoc(info)
   const fieldNodesWithoutLocalInterfacesDoc = pruneInterfaces(fieldNodesDoc, prefix, info)
   const unprefixedFieldNodesDoc = unprefixTypes(fieldNodesWithoutLocalInterfacesDoc, prefix)
-  const fieldNodesWithoutExtendedFields = pruneExtendedFields(schema, unprefixedFieldNodesDoc)
-
   const {document: mergedDoc, wrappedPath} = mergeFieldNodesAndWrapper(
-    fieldNodesWithoutExtendedFields,
+    unprefixedFieldNodesDoc,
     wrapper,
   )
-  const {variables, document} = pruneUnused(mergedDoc, info.variableValues)
+  // pruneExtended must come after merging the wrapper into the document
+  // because before that, the wrapper is an invalid operation living on the query instead
+  // it must be moved to its correct location and then the TypeInfo will yield the correct result
+  const fieldNodesWithoutExtendedFields = pruneExtendedFields(schema, mergedDoc)
+  const {variables, document} = pruneUnused(fieldNodesWithoutExtendedFields, info.variableValues)
   return {document, variables, wrappedPath}
 }
 
