@@ -1,13 +1,13 @@
 import {DocumentNode, FieldNode, OperationDefinitionNode, SelectionSetNode} from 'graphql'
 import {GraphQLEndpointError} from './types'
 
-const visitDocFotPath = (path: string[], selectionSetNode: SelectionSetNode) => {
+const visitDocFotPath = (path: (string | number)[], selectionSetNode: SelectionSetNode) => {
   let isPathInDoc = true
-  const findPathInDoc = (pathSlice: string[], node: SelectionSetNode | undefined) => {
+  const findPathInDoc = (pathSlice: (string | number)[], node: SelectionSetNode | undefined) => {
     if (!pathSlice.length || !node) return
     const [firstPathName] = pathSlice
     const {selections} = node
-    const isSpread = firstPathName.startsWith('...')
+    const isSpread = typeof firstPathName === 'string' && firstPathName.startsWith?.('...')
     if (isSpread) {
       // always include errors in fragments (technically not correct)
       isPathInDoc = true
@@ -43,7 +43,7 @@ const filterErrorsForDocument = (
     // If endpoint doesn't give us the path, don't filter it out
     if (!path || path.length === 0) return true
     const [startField] = path
-    const testPath = startField.startsWith(operation) ? path.slice(1) : path
+    const testPath = typeof startField === 'string' && startField.startsWith(operation) ? path.slice(1) : path
     return visitDocFotPath(testPath, selectionSet)
   })
   return filteredErrors.length ? filteredErrors : null

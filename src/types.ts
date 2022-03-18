@@ -11,7 +11,7 @@ export interface GraphQLEndpointError extends BaseGraphQLError {
     column: number
   }[]
   type?: string
-  path?: string[]
+  path?: (string | number)[]
 }
 
 export type EndpointResponseData = Record<string, unknown> | null
