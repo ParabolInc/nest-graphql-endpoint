@@ -1,5 +1,10 @@
 # nest-graphql-endpoint
 
+## 0.6.1
+
+Changed
+- Reverted node-fetch back to v2
+
 ## 0.6.0
 
 ### Changed
