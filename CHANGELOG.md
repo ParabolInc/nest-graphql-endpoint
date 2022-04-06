@@ -1,5 +1,13 @@
 # nest-graphql-endpoint
 
+## 0.6.0
+
+### Changed
+- Bump all packages
+
+### Added
+- Check aliased value from source
+
 ## 0.5.1
 
 ### Fixed

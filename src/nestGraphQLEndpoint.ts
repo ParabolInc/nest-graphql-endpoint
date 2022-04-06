@@ -1,10 +1,20 @@
-import {mergeSchemas} from '@graphql-tools/merge'
-import {makeExecutableSchema} from '@graphql-tools/schema'
+import {makeExecutableSchema, mergeSchemas} from '@graphql-tools/schema'
 import {RenameRootTypes, RenameTypes, wrapSchema} from '@graphql-tools/wrap'
-import {GraphQLResolveInfo, GraphQLSchema} from 'graphql'
+import {GraphQLResolveInfo, GraphQLSchema, isObjectType} from 'graphql'
 import getRequestDataLoader from './getDataLoader'
 import transformNestedSelection from './transformNestedSelection'
 import {ExecutionRef, NestedSource, NestGraphQLEndpointParams} from './types'
+
+// if a field is aliased in the request that alias will be the key in the `source` object
+const externalResolver = (
+  source: any,
+  _args: any,
+  _context: ExecutionRef,
+  info: GraphQLResolveInfo,
+) => {
+  const key = info.fieldNodes[0]!.alias?.value ?? info.fieldName
+  return source[key]
+}
 
 const nestGraphQLEndpoint = <TContext>(params: NestGraphQLEndpointParams<TContext>) => {
   const {
@@ -22,61 +32,69 @@ const nestGraphQLEndpoint = <TContext>(params: NestGraphQLEndpointParams<TContex
   const schema = makeExecutableSchema({
     typeDefs: schemaIDL,
   })
+
   const transformedEndpointSchema = wrapSchema({
     schema,
-    createProxyingResolver: () => (
-      parent: any,
-      _args: any,
-      _context: ExecutionRef,
-      info: GraphQLResolveInfo,
-    ) => parent[info.fieldName],
     transforms: [new RenameRootTypes(prefixEndpoint), new RenameTypes(prefixEndpoint)],
   })
 
-  const resolveOperation = (isMutation?: boolean) => async (
-    source: NestedSource<TContext>,
-    _args: any,
-    executionRef: ExecutionRef,
-    info: GraphQLResolveInfo,
-  ) => {
-    if (source.errors) return null
-    const {context, wrapper, wrapperVars} = source
-    let transform: ReturnType<typeof transformNestedSelection>
-    try {
-      transform = transformNestedSelection(schema, info, prefix, wrapper)
-    } catch (e) {
-      const errors = [{message: e.message || 'Transform error'}]
-      if (source.resolveErrors) {
-        source.resolveErrors(errors)
-      } else {
-        source.errors = errors
-      }
-      return null
-    }
-    const {document, variables, wrappedPath} = transform
-    // Create a new dataloader for each execution (a context is created for each execution)
-    const ghDataLoader = getRequestDataLoader(executionRef)
-    const res = await ghDataLoader.load({
-      document,
-      variables: {...variables, ...wrapperVars},
-      context,
-      options: {
-        batchKey,
-        endpointTimeout,
-        executor,
-        prefix,
-        isMutation: !!isMutation,
-      },
+  // overwrite the resolves that wrapSchema added
+  const typeMap = transformedEndpointSchema.getTypeMap()
+  Object.values(typeMap)
+    .filter(isObjectType)
+    .forEach((gqlObject) => {
+      const fields = gqlObject.getFields()
+      Object.values(fields).forEach((field) => {
+        field.resolve = externalResolver
+      })
     })
-    if (source.resolveErrors) {
-      source.resolveErrors(res.errors)
-    } else {
-      source.errors = res.errors
+
+  const resolveOperation =
+    (isMutation?: boolean) =>
+    async (
+      source: NestedSource<TContext>,
+      _args: any,
+      executionRef: ExecutionRef,
+      info: GraphQLResolveInfo,
+    ) => {
+      if (source.errors) return null
+      const {context, wrapper, wrapperVars} = source
+      let transform: ReturnType<typeof transformNestedSelection>
+      try {
+        transform = transformNestedSelection(schema, info, prefix, wrapper)
+      } catch (e) {
+        const errors = [{message: (e as Error).message || 'Transform error'}]
+        if (source.resolveErrors) {
+          source.resolveErrors(errors)
+        } else {
+          source.errors = errors
+        }
+        return null
+      }
+      const {document, variables, wrappedPath} = transform
+      // Create a new dataloader for each execution (a context is created for each execution)
+      const ghDataLoader = getRequestDataLoader(executionRef)
+      const res = await ghDataLoader.load({
+        document,
+        variables: {...variables, ...wrapperVars},
+        context,
+        options: {
+          batchKey,
+          endpointTimeout,
+          executor,
+          prefix,
+          isMutation: !!isMutation,
+        },
+      })
+      if (source.resolveErrors) {
+        source.resolveErrors(res.errors)
+      } else {
+        source.errors = res.errors
+      }
+      return wrappedPath
+        ? wrappedPath.reduce((obj, prop) => obj?.[prop] ?? null, res.data as any)
+        : res.data
     }
-    return wrappedPath
-      ? wrappedPath.reduce((obj, prop) => obj?.[prop] ?? null, res.data as any)
-      : res.data
-  }
 
   return mergeSchemas({
     schemas: [transformedEndpointSchema, parentSchema],
@@ -141,7 +159,7 @@ const nestGraphQLEndpoint = <TContext>(params: NestGraphQLEndpointParams<TContex
             return {
               errors: [
                 {
-                  message: e?.message || 'No endpoint context provided',
+                  message: (e as Error).message || 'No endpoint context provided',
                 },
               ],
             }
