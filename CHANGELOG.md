@@ -1,5 +1,10 @@
 # nest-graphql-endpoint
 
+## 0.6.2
+
+### Fixed
+
+- Schema introspection, do not override private type resolvers
 ## 0.6.1
 
 Changed
