@@ -1,9 +1,9 @@
-import {makeExecutableSchema, mergeSchemas} from '@graphql-tools/schema'
-import {RenameRootTypes, RenameTypes, wrapSchema} from '@graphql-tools/wrap'
-import {GraphQLResolveInfo, GraphQLSchema, isObjectType} from 'graphql'
+import { makeExecutableSchema, mergeSchemas } from '@graphql-tools/schema'
+import { RenameRootTypes, RenameTypes, wrapSchema } from '@graphql-tools/wrap'
+import { GraphQLObjectType, GraphQLResolveInfo, GraphQLSchema, isObjectType } from 'graphql'
 import getRequestDataLoader from './getDataLoader'
 import transformNestedSelection from './transformNestedSelection'
-import {ExecutionRef, NestedSource, NestGraphQLEndpointParams} from './types'
+import { ExecutionRef, NestedSource, NestGraphQLEndpointParams } from './types'
 
 // if a field is aliased in the request that alias will be the key in the `source` object
 const externalResolver = (
@@ -37,11 +37,15 @@ const nestGraphQLEndpoint = <TContext>(params: NestGraphQLEndpointParams<TContex
     schema,
     transforms: [new RenameRootTypes(prefixEndpoint), new RenameTypes(prefixEndpoint)],
   })
-
   // overwrite the resolves that wrapSchema added
   const typeMap = transformedEndpointSchema.getTypeMap()
+  const isPublicObjectType = (type: any): type is GraphQLObjectType => {
+    // private types include things like __Schema, __Type, __Directive
+    // those already have their own resolvers that we do not want to overwrite
+    return isObjectType(type) && !type.name.startsWith('__')
+  }
   Object.values(typeMap)
-    .filter(isObjectType)
+    .filter(isPublicObjectType)
     .forEach((gqlObject) => {
       const fields = gqlObject.getFields()
       Object.values(fields).forEach((field) => {
