@@ -1,4 +1,4 @@
 import { GraphQLSchema } from 'graphql';
-import { NestGraphQLEndpointParams } from './types';
-declare const nestGraphQLEndpoint: <TContext>(params: NestGraphQLEndpointParams<TContext>) => GraphQLSchema;
+import { EndpointContext, NestGraphQLEndpointParams } from './types';
+declare const nestGraphQLEndpoint: <TContext extends EndpointContext>(params: NestGraphQLEndpointParams<TContext>) => GraphQLSchema;
 export default nestGraphQLEndpoint;

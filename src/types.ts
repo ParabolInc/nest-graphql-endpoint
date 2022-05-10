@@ -1,5 +1,5 @@
-import DataLoader from 'dataloader'
-import {DocumentNode, GraphQLResolveInfo, GraphQLSchema} from 'graphql'
+import DataLoader, { Options } from 'dataloader'
+import { DocumentNode, GraphQLResolveInfo, GraphQLSchema } from 'graphql'
 
 export interface BaseGraphQLError {
   message: string
@@ -22,6 +22,7 @@ export interface EndpointExecutionResult {
 
 export interface EndpointContext {
   accessToken?: string
+  dataLoaderOptions?: Options<any,any>
   [key: string]: any
 }
 
@@ -78,8 +79,9 @@ export type EndpointDataLoader<TContext> = DataLoader<
   EndpointExecutionResult
 >
 
-export interface NestedSource<TContext> {
+export interface NestedSource<TContext extends EndpointContext> {
   context: TContext
+  dataLoaderOptions: Omit<Options<any, any>, 'cache'>
   wrapperVars?: Variables
   wrapper?: DocumentNode
   errors?: BaseGraphQLError[] | null

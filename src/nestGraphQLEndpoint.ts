@@ -3,7 +3,7 @@ import { RenameRootTypes, RenameTypes, wrapSchema } from '@graphql-tools/wrap'
 import { GraphQLObjectType, GraphQLResolveInfo, GraphQLSchema, isObjectType } from 'graphql'
 import getRequestDataLoader from './getDataLoader'
 import transformNestedSelection from './transformNestedSelection'
-import { ExecutionRef, NestedSource, NestGraphQLEndpointParams } from './types'
+import { EndpointContext, ExecutionRef, NestedSource, NestGraphQLEndpointParams } from './types'
 
 // if a field is aliased in the request that alias will be the key in the `source` object
 const externalResolver = (
@@ -16,7 +16,7 @@ const externalResolver = (
   return source[key]
 }
 
-const nestGraphQLEndpoint = <TContext>(params: NestGraphQLEndpointParams<TContext>) => {
+const nestGraphQLEndpoint = <TContext extends EndpointContext>(params: NestGraphQLEndpointParams<TContext>) => {
   const {
     parentSchema,
     parentType,
@@ -63,6 +63,7 @@ const nestGraphQLEndpoint = <TContext>(params: NestGraphQLEndpointParams<TContex
     ) => {
       if (source.errors) return null
       const {context, wrapper, wrapperVars} = source
+      const {dataLoaderOptions} = context
       let transform: ReturnType<typeof transformNestedSelection>
       try {
         transform = transformNestedSelection(schema, info, prefix, wrapper)
@@ -77,7 +78,7 @@ const nestGraphQLEndpoint = <TContext>(params: NestGraphQLEndpointParams<TContex
       }
       const {document, variables, wrappedPath} = transform
       // Create a new dataloader for each execution (a context is created for each execution)
-      const ghDataLoader = getRequestDataLoader(executionRef)
+      const ghDataLoader = getRequestDataLoader(executionRef, dataLoaderOptions)
       const res = await ghDataLoader.load({
         document,
         variables: {...variables, ...wrapperVars},
