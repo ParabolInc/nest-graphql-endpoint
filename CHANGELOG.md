@@ -1,5 +1,11 @@
 # nest-graphql-endpoint
 
+## 0.7.1
+
+### Removed
+
+- Removed node-fetch
+
 ## 0.7.0
 
 ### BREAKING
