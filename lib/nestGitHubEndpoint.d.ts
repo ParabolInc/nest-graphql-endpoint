@@ -1,12 +1,13 @@
+/// <reference lib="dom" />
 import { GraphQLResolveInfo } from 'graphql';
 import { NestGraphQLEndpointParams } from './types';
-declare type NestParams = NestGraphQLEndpointParams<{
+type NestParams = NestGraphQLEndpointParams<{
     accessToken: string;
     headers?: Record<string, string>;
 }>;
-declare type RequiredParams = Pick<NestParams, 'parentSchema' | 'parentType' | 'fieldName' | 'resolveEndpointContext'>;
-declare type OptionalParams = Omit<Partial<NestParams>, keyof RequiredParams>;
-declare type NestGitHubParams = RequiredParams & OptionalParams;
+type RequiredParams = Pick<NestParams, 'parentSchema' | 'parentType' | 'fieldName' | 'resolveEndpointContext'>;
+type OptionalParams = Omit<Partial<NestParams>, keyof RequiredParams>;
+type NestGitHubParams = RequiredParams & OptionalParams;
 interface Input<TVars> {
     query: string;
     endpointContext: Record<string, any>;

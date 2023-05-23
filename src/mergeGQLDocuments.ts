@@ -4,6 +4,7 @@ import {
   FieldNode,
   FragmentDefinitionNode,
   InlineFragmentNode,
+  Kind,
   OperationDefinitionNode,
   SelectionNode,
   SelectionSetNode,
@@ -79,13 +80,13 @@ const getMergedSelections = (
     return true
   }
   newSelections.forEach((newSelection) => {
-    if (newSelection.kind === 'InlineFragment') {
+    if (newSelection.kind === Kind.INLINE_FRAGMENT) {
       // if there's an existing inline fragment with the type condition & directives
       // use that instead, just suffix all the fields
       const typeCondition = newSelection.typeCondition?.name.value
       const existingInlineFragment = nextSelections.find(
         (s) =>
-          s.kind === 'InlineFragment' &&
+          s.kind === Kind.INLINE_FRAGMENT &&
           s.typeCondition?.name.value === typeCondition &&
           areDirectivesEqual(s.directives, newSelection.directives),
       ) as InlineFragmentNode | undefined
@@ -95,16 +96,17 @@ const getMergedSelections = (
       }
       return
     }
-    if (newSelection.kind === 'FragmentSpread') {
+    if (newSelection.kind === Kind.FRAGMENT_SPREAD) {
       // if it's a new fragment spread, add it, else ignore
       const existingFrag = nextSelections.find(
-        (s) => s.kind === 'FragmentSpread' && s.name.value === newSelection.name.value,
+        (s) => s.kind === Kind.FRAGMENT_SPREAD && s.name.value === newSelection.name.value,
       )
       if (!existingFrag) {
         nextSelections.push(newSelection)
       }
       const fragDef = definitions.find(
-        (def) => def.kind === 'FragmentDefinition' && def.name.value === newSelection.name.value,
+        (def) =>
+          def.kind === Kind.FRAGMENT_DEFINITION && def.name.value === newSelection.name.value,
       ) as FragmentDefinitionNode
       const fragDefSelections = fragDef.selectionSet.selections
       // Update the aliasMap by traversing the children
@@ -136,7 +138,7 @@ const getMergedSelections = (
       ? undefined
       : (nextSelections.find(
           (s) =>
-            s.kind === 'Field' &&
+            s.kind === Kind.FIELD &&
             s.name.value === newFieldName &&
             areArgsEqual(s.arguments, newFieldArgs) &&
             areDirectivesEqual(s.directives, newFieldDirectives),
@@ -147,7 +149,7 @@ const getMergedSelections = (
     let endpointResponseFieldName: string
     const isRequestedFieldNameFree = () => {
       return !nextSelections.find((s) => {
-        return s.kind === 'Field' && requestedFieldName === (s.alias?.value ?? s.name.value)
+        return s.kind === Kind.FIELD && requestedFieldName === (s.alias?.value ?? s.name.value)
       })
     }
     if (existingField) {
@@ -166,7 +168,7 @@ const getMergedSelections = (
       nextSelections.push({
         ...newSelection,
         alias: {
-          kind: 'Name' as const,
+          kind: Kind.NAME,
           value: endpointResponseFieldName,
         },
       })
@@ -194,7 +196,7 @@ const addNewOperationDefinition_ = (
   const {operation, variableDefinitions, selectionSet} = definition as BaseOperationDefinitionNode
   // add completely new ops
   let matchingOp = baseDefinitions.find(
-    (curDef) => curDef.kind === 'OperationDefinition' && curDef.operation === operation,
+    (curDef) => curDef.kind === Kind.OPERATION_DEFINITION && curDef.operation === operation,
   )
   // create an empty version so the first execParams can crawl & map
   if (!matchingOp) {
@@ -235,7 +237,7 @@ const mergeGQLDocuments = (cachedExecParams: CachedExecParams[], isMutation?: bo
     const {definitions} = aliasedVarsDoc
     const aliasMap = Object.create(null) as AliasMap
     definitions.forEach((definition) => {
-      if (definition.kind === 'OperationDefinition') {
+      if (definition.kind === Kind.OPERATION_DEFINITION) {
         addNewOperationDefinition_(
           baseDefinitions,
           definition,
@@ -244,12 +246,12 @@ const mergeGQLDocuments = (cachedExecParams: CachedExecParams[], isMutation?: bo
           !!isMutation,
           aliasMap,
         )
-      } else if (definition.kind === 'FragmentDefinition') {
+      } else if (definition.kind === Kind.FRAGMENT_DEFINITION) {
         // Assumes similarly named fragments are identical
         // That means no alias necessary & we can reuse across the batch
         const fragmentName = definition.name.value
         const existingFrag = baseDefinitions.find(
-          (def) => def.kind === 'FragmentDefinition' && def.name.value === fragmentName,
+          (def) => def.kind === Kind.FRAGMENT_DEFINITION && def.name.value === fragmentName,
         )
         if (!existingFrag) {
           baseDefinitions.push(definition)
@@ -259,7 +261,7 @@ const mergeGQLDocuments = (cachedExecParams: CachedExecParams[], isMutation?: bo
     aliasMaps.push(aliasMap)
   })
   const mergedDoc = {
-    kind: 'Document' as const,
+    kind: Kind.DOCUMENT as const,
     definitions: baseDefinitions,
   }
   return {document: mergedDoc, variables, aliasMaps}
