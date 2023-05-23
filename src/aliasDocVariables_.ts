@@ -82,7 +82,6 @@ const aliasDocVariables_ = (
         },
       }
     },
-    //
     OperationDefinition: {
       leave(node) {
         const {variableDefinitions} = node
