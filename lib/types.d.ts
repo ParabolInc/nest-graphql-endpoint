@@ -12,7 +12,7 @@ export interface GraphQLEndpointError extends BaseGraphQLError {
     type?: string;
     path?: (string | number)[];
 }
-export declare type EndpointResponseData = Record<string, unknown> | null;
+export type EndpointResponseData = Record<string, unknown> | null;
 export interface EndpointExecutionResult {
     data: EndpointResponseData;
     errors?: GraphQLEndpointError[] | null;
@@ -22,13 +22,13 @@ export interface EndpointContext {
     dataLoaderOptions?: Options<any, any>;
     [key: string]: any;
 }
-export declare type ExecutionRef = Record<string, unknown>;
-export declare type Variables = Record<string, unknown>;
+export type ExecutionRef = Record<string, unknown>;
+export type Variables = Record<string, unknown>;
 export interface AliasMapper {
     [aliasedName: string]: string;
 }
-export declare type Executor<TContext> = (document: DocumentNode, variables: Variables, endpointTimeout: number, context: TContext) => EndpointExecutionResult | Promise<EndpointExecutionResult>;
-declare type ResolveEndpointContext<TContext> = (source: any, args: any, context: any, info: GraphQLResolveInfo) => TContext | Promise<TContext>;
+export type Executor<TContext> = (document: DocumentNode, variables: Variables, endpointTimeout: number, context: TContext) => EndpointExecutionResult | Promise<EndpointExecutionResult>;
+type ResolveEndpointContext<TContext> = (source: any, args: any, context: any, info: GraphQLResolveInfo) => TContext | Promise<TContext>;
 export interface NestGraphQLEndpointParams<TContext> {
     parentSchema: GraphQLSchema;
     parentType: string;
@@ -52,7 +52,7 @@ export interface DataLoaderKey<TContext> {
         isMutation: boolean;
     };
 }
-export declare type EndpointDataLoader<TContext> = DataLoader<DataLoaderKey<TContext>, EndpointExecutionResult>;
+export type EndpointDataLoader<TContext> = DataLoader<DataLoaderKey<TContext>, EndpointExecutionResult>;
 export interface NestedSource<TContext extends EndpointContext> {
     context: TContext;
     dataLoaderOptions: Omit<Options<any, any>, 'cache'>;
@@ -66,5 +66,5 @@ interface AliasMapEntry {
     name: string;
     children: AliasMap;
 }
-export declare type AliasMap = Record<string, AliasMapEntry>;
+export type AliasMap = Record<string, AliasMapEntry>;
 export {};

@@ -1,12 +1,12 @@
-import { DefinitionNode, DocumentNode } from 'graphql';
+import { DefinitionNode, DocumentNode, Kind } from 'graphql';
 import { AliasMap, Variables } from './types';
 interface CachedExecParams {
     document: DocumentNode;
     variables: Variables;
 }
-declare const mergeGQLDocuments: (cachedExecParams: CachedExecParams[], isMutation?: boolean | undefined) => {
+declare const mergeGQLDocuments: (cachedExecParams: CachedExecParams[], isMutation?: boolean) => {
     document: {
-        kind: "Document";
+        kind: Kind.DOCUMENT;
         definitions: DefinitionNode[];
     };
     variables: Variables;

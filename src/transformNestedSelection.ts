@@ -4,25 +4,26 @@ import {
   FragmentDefinitionNode,
   GraphQLResolveInfo,
   GraphQLSchema,
+  Kind,
   OperationDefinitionNode,
   TypeInfo,
   visit,
-  visitWithTypeInfo
+  visitWithTypeInfo,
 } from 'graphql'
 import pruneInterfaces from './pruneInterfaces'
-import { Variables } from './types'
+import {Variables} from './types'
 
 // Transform the info fieldNodes into a standalone document AST
 const transformInfoIntoDoc = (info: GraphQLResolveInfo) => {
   return {
-    kind: 'Document',
+    kind: Kind.DOCUMENT,
     definitions: [
       {
         kind: info.operation.kind,
         operation: info.operation.operation,
         variableDefinitions: info.operation.variableDefinitions || [],
         selectionSet: {
-          kind: 'SelectionSet',
+          kind: Kind.SELECTION_SET,
           // probably a cleaner way to go about this...
           selections: JSON.parse(
             JSON.stringify(info.fieldNodes.flatMap(({selectionSet}) => selectionSet!.selections)),
@@ -35,12 +36,12 @@ const transformInfoIntoDoc = (info: GraphQLResolveInfo) => {
 }
 
 // remove unused fragDefs, varDefs, and variables
-const pruneUnused = (doc: DocumentNode, allVariables: Record<string, string>) => {
+const pruneUnused = (doc: DocumentNode, allVariables: GraphQLResolveInfo['variableValues']) => {
   const usedVariables = new Set<string>()
   const usedFragmentSpreads = new Set<string>()
   const {definitions} = doc
   const opDef = definitions.find(
-    ({kind}) => kind === 'OperationDefinition',
+    ({kind}) => kind === Kind.OPERATION_DEFINITION,
   ) as OperationDefinitionNode
 
   const nextSelectionSet = visit(opDef.selectionSet, {
@@ -53,7 +54,8 @@ const pruneUnused = (doc: DocumentNode, allVariables: Record<string, string>) =>
       const {name} = node
       const {value} = name
       const fragmentDefinition = definitions.find(
-        (definition) => definition.kind === 'FragmentDefinition' && definition.name.value === value,
+        (definition) =>
+          definition.kind === Kind.FRAGMENT_DEFINITION && definition.name.value === value,
       )
       // the fragmentDefinition may have been removed by pruneLocalTypes
       if (!fragmentDefinition) return null
@@ -76,7 +78,8 @@ const pruneUnused = (doc: DocumentNode, allVariables: Record<string, string>) =>
 
   const prunedFragDefs = definitions.filter(
     (definition) =>
-      definition.kind === 'FragmentDefinition' && usedFragmentSpreads.has(definition.name.value),
+      definition.kind === Kind.FRAGMENT_DEFINITION &&
+      usedFragmentSpreads.has(definition.name.value),
   ) as FragmentDefinitionNode[]
 
   const variables = {} as Variables
@@ -134,13 +137,13 @@ const mergeFieldNodesAndWrapper = (fieldNodesDoc: DocumentNode, wrapper: Documen
     SelectionSet(node, _key, parent, _path, ancestors) {
       const {selections} = node
       const [firstSelection] = selections
-      if (firstSelection.kind !== 'FragmentSpread') return undefined
+      if (firstSelection.kind !== Kind.FRAGMENT_SPREAD) return undefined
       const {name} = firstSelection
       const {value} = name
       if (value !== MAGIC_FRAGMENT_NAME) return undefined
       if (wrappedPath.length) throw new Error(`Only one ...${MAGIC_FRAGMENT_NAME} is allowed`)
       ancestors.forEach((ancestor) => {
-        if ('kind' in ancestor && ancestor.kind === 'Field') {
+        if ('kind' in ancestor && ancestor.kind === Kind.FIELD) {
           const {name} = ancestor
           const {value} = name
           wrappedPath.push(value)
@@ -149,7 +152,7 @@ const mergeFieldNodesAndWrapper = (fieldNodesDoc: DocumentNode, wrapper: Documen
       wrappedPath.push((parent as FieldNode).name.value)
       const {definitions} = fieldNodesDoc
       const fieldNodesOpDef = definitions.find(
-        (def) => def.kind === 'OperationDefinition',
+        (def) => def.kind === Kind.OPERATION_DEFINITION,
       ) as OperationDefinitionNode
       return fieldNodesOpDef.selectionSet
     },
@@ -161,11 +164,11 @@ const mergeFieldNodesAndWrapper = (fieldNodesDoc: DocumentNode, wrapper: Documen
   const docs = [mergedDoc, fieldNodesDoc]
   const opDefs = docs.map(
     ({definitions}) =>
-      definitions.find(({kind}) => kind === 'OperationDefinition') as OperationDefinitionNode,
+      definitions.find(({kind}) => kind === Kind.OPERATION_DEFINITION) as OperationDefinitionNode,
   )
   const fragDefs = docs.flatMap(
     ({definitions}) =>
-      definitions.filter(({kind}) => kind === 'FragmentDefinition') as FragmentDefinitionNode[],
+      definitions.filter(({kind}) => kind === Kind.FRAGMENT_DEFINITION) as FragmentDefinitionNode[],
   )
 
   const [mergedOpDef] = opDefs

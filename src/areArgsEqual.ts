@@ -1,10 +1,10 @@
-import {ArgumentNode, print} from 'graphql'
+import {ArgumentNode, Kind, print} from 'graphql'
 
 const printArgs = (argArr: readonly ArgumentNode[]) => {
   return print({
-    kind: 'Field',
+    kind: Kind.FIELD,
     name: {
-      kind: 'Name',
+      kind: Kind.NAME,
       value: '',
     },
     arguments: argArr,

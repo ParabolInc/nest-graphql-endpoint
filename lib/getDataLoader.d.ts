@@ -1,4 +1,4 @@
-import DataLoader from 'dataloader';
+import { Options } from 'dataloader';
 import { EndpointDataLoader, ExecutionRef } from './types';
-declare const getDataLoader: (ref: ExecutionRef, dataLoaderOptions?: DataLoader.Options<any, any, any> | undefined) => EndpointDataLoader<any>;
+declare const getDataLoader: (ref: ExecutionRef, dataLoaderOptions?: Options<any, any>) => EndpointDataLoader<any>;
 export default getDataLoader;
