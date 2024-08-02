@@ -1,30 +1,49 @@
 # nest-graphql-endpoint
 
+## 0.7.1
+
+### Removed
+
+- Removed node-fetch
+
+## 0.7.0
+
+### BREAKING
+
+- Drop support for Node below v16
+
 ## 0.6.2
 
 ### Fixed
 
 - Schema introspection, do not override private type resolvers
+
 ## 0.6.1
 
 Changed
+
 - Reverted node-fetch back to v2
 
 ## 0.6.0
 
 ### Changed
+
 - Bump all packages
 
 ### Added
+
 - Check aliased value from source
 
 ## 0.5.1
 
 ### Fixed
+
 - pruneExtended after wrapper gets merged into place
+
 ## 0.5.0
 
 ### Added
+
 - Automatically remove fields that don't belong in the endpoint
 
 ## 0.4.4
