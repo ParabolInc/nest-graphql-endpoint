@@ -83,7 +83,7 @@ const aliasDocVariables_ = (
       }
     },
     OperationDefinition: {
-      leave(node) {
+      leave: (node) => {
         const {variableDefinitions} = node
         if (!variableDefinitions) return undefined
         const usedVariableDefNames = new Set<string>()

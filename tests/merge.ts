@@ -1,10 +1,12 @@
 import assert from 'assert'
+import {writeFileSync} from 'fs'
 import {parse, print} from 'graphql'
 import dealiasResult from '../src/dealiasResult'
 import mergeGQLDocuments from '../src/mergeGQLDocuments'
 
 const test1 = () => {
-  const q1 = `query getIssueLabels($repoName: String!, $repoOwner: String!, $issueNumber: Int!, $first: Int!) {
+  const q1 =
+    `query getIssueLabels($repoName: String!, $repoOwner: String!, $issueNumber: Int!, $first: Int!) {
   rateLimit {
     cost
   }
@@ -24,9 +26,10 @@ const test1 = () => {
       }
     }
   }
-}`
+}`.trim()
 
-  const q2 = `query getIssueLabels($repoName: String!, $repoOwner: String!, $issueNumber: Int!, $first: Int!) {
+  const q2 =
+    `query getIssueLabels($repoName: String!, $repoOwner: String!, $issueNumber: Int!, $first: Int!) {
   rateLimit {
     cost
   }
@@ -47,7 +50,7 @@ const test1 = () => {
       }
     }
   }
-}`
+}`.trim()
 
   const q1q2Merged =
     `query getIssueLabels($repoName: String!, $repoOwner: String!, $issueNumber: Int!, $first: Int!) {
@@ -183,26 +186,6 @@ const test1 = () => {
                     },
                   ],
                 },
-                pullRequests_1: {
-                  nodes: [
-                    {
-                      id: 'MDExOlB1bGxSZXF1ZXN0MTM1NzE1NzE1',
-                      __typename: 'PullRequest',
-                    },
-                    {
-                      id: 'MDExOlB1bGxSZXF1ZXN0NTc1Mjc4NDg3',
-                      __typename: 'PullRequest',
-                    },
-                    {
-                      id: 'MDExOlB1bGxSZXF1ZXN0Njg4MTQ1NTM2',
-                      __typename: 'PullRequest',
-                    },
-                    {
-                      id: 'PR_kwDOAuJJ2c4wGI-3',
-                      __typename: 'PullRequest',
-                    },
-                  ],
-                },
               },
               {
                 id: 'MDU6TGFiZWwyODkwMTk5ODgx',
@@ -210,17 +193,11 @@ const test1 = () => {
                 pullRequests: {
                   nodes: [],
                 },
-                pullRequests_1: {
-                  nodes: [],
-                },
               },
               {
                 id: 'LA_kwDOAuJJ2c7iPAj4',
                 name: 'Story Points: 1',
                 pullRequests: {
-                  nodes: [],
-                },
-                pullRequests_1: {
                   nodes: [],
                 },
               },
@@ -310,8 +287,8 @@ const test1 = () => {
   ]
   const {document, aliasMaps} = mergeGQLDocuments(execParams)
   const docStr = print(document)
-  assert.equal(docStr.trim(), q1q2Merged)
-  const results = [] as any
+  assert.equal(docStr, q1q2Merged)
+  const results = [] as Record<number, {data: any; errors: any}>
   execParams.forEach((_execParam, idx) => {
     const batchPath = aliasMaps[idx]
     results[idx] = {
@@ -319,6 +296,9 @@ const test1 = () => {
       errors: null,
     }
   })
+  writeFileSync('r1.json', JSON.stringify(results[0]))
+  writeFileSync('q1.json', JSON.stringify(q1Response))
+  assert.deepEqual(results[0], q1Response)
   assert.deepEqual(results[1], q2Response)
 }
 

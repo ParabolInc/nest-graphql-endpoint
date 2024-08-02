@@ -35,7 +35,7 @@ const defaultExecutor: Executor<{accessToken: string; headers?: Record<string, s
     })
     clearTimeout(timeout)
     const resJSON = (await result.json()) as EndpointExecutionResult | {message?: string}
-    if ('errors' in resJSON || 'data' in resJSON) return resJSON
+    if ('data' in resJSON) return resJSON
     const message = String(resJSON.message) || JSON.stringify(resJSON)
     return {
       errors: [

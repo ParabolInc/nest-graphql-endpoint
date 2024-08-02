@@ -21,15 +21,15 @@
   "sideEffects": false,
   "main": "lib/nestGraphQLEndpoint.js",
   "peerDependencies": {
-    "graphql": "*"
+    "graphql": "^16"
   },
   "dependencies": {
-    "@graphql-tools/schema": "^10.0.0",
-    "@graphql-tools/wrap": "^10.0.0",
-    "@octokit/graphql-schema": "^14.5.0",
-    "dataloader": "2.2.2",
-    "tslib": "~2.5.2",
-    "typescript": "^5.0.4"
+    "@graphql-tools/schema": "^10.0.4",
+    "@graphql-tools/wrap": "^10.0.5",
+    "@octokit/graphql-schema": "^15.25.0",
+    "dataloader": "^2.2.2",
+    "tslib": "^2.6.3",
+    "typescript": "^5.5.4"
   },
   "devDependencies": {
     "@types/node": "^20.2.3",

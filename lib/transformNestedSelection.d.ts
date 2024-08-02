@@ -10,13 +10,13 @@ declare const transformNestedSelection: (schema: GraphQLSchema, info: GraphQLRes
             selectionSet: import("graphql").SelectionSetNode;
             variableDefinitions: import("graphql").VariableDefinitionNode[];
             kind: Kind.OPERATION_DEFINITION;
-            loc?: import("graphql").Location | undefined;
-            operation: import("graphql/language/ast").OperationTypeNode;
-            name?: import("graphql").NameNode | undefined;
-            directives?: readonly import("graphql").DirectiveNode[] | undefined;
+            loc?: import("graphql").Location;
+            operation: import("graphql").OperationTypeNode;
+            name?: import("graphql").NameNode;
+            directives?: ReadonlyArray<import("graphql").DirectiveNode>;
         })[];
         kind: Kind.DOCUMENT;
-        loc?: import("graphql").Location | undefined;
+        loc?: import("graphql").Location;
     };
     variables: Variables;
     wrappedPath: string[] | undefined;

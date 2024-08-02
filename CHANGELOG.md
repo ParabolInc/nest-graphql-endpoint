@@ -1,5 +1,10 @@
 # nest-graphql-endpoint
 
+## 0.8.0
+
+- Bump deps
+- Drop support for GraphQL v15 (uncompatible vistor)
+
 ## 0.7.1
 
 ### Removed

@@ -2,12 +2,12 @@ import {
   BREAK,
   DocumentNode,
   FragmentDefinitionNode,
+  getNamedType,
   GraphQLResolveInfo,
   InlineFragmentNode,
-  getNamedType,
   isAbstractType,
   isLeafType,
-  visit,
+  visit
 } from 'graphql'
 
 const pruneLocalTypes = (doc: DocumentNode, prefix: string, info: GraphQLResolveInfo) => {

@@ -1,4 +1,3 @@
-/// <reference lib="dom" />
 import { GraphQLResolveInfo } from 'graphql';
 import { NestGraphQLEndpointParams } from './types';
 type NestParams = NestGraphQLEndpointParams<{
