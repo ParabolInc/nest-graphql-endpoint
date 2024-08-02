@@ -1,9 +1,9 @@
-import { makeExecutableSchema, mergeSchemas } from '@graphql-tools/schema'
-import { RenameRootTypes, RenameTypes, wrapSchema } from '@graphql-tools/wrap'
-import { GraphQLObjectType, GraphQLResolveInfo, GraphQLSchema, isObjectType } from 'graphql'
+import {makeExecutableSchema, mergeSchemas} from '@graphql-tools/schema'
+import {RenameRootTypes, RenameTypes, wrapSchema} from '@graphql-tools/wrap'
+import {GraphQLObjectType, GraphQLResolveInfo, GraphQLSchema, Kind, isObjectType} from 'graphql'
 import getRequestDataLoader from './getDataLoader'
 import transformNestedSelection from './transformNestedSelection'
-import { EndpointContext, ExecutionRef, NestedSource, NestGraphQLEndpointParams } from './types'
+import {EndpointContext, ExecutionRef, NestedSource, NestGraphQLEndpointParams} from './types'
 
 // if a field is aliased in the request that alias will be the key in the `source` object
 const externalResolver = (
@@ -16,7 +16,9 @@ const externalResolver = (
   return source[key]
 }
 
-const nestGraphQLEndpoint = <TContext extends EndpointContext>(params: NestGraphQLEndpointParams<TContext>) => {
+const nestGraphQLEndpoint = <TContext extends EndpointContext>(
+  params: NestGraphQLEndpointParams<TContext>,
+) => {
   const {
     parentSchema,
     parentType,
@@ -134,10 +136,10 @@ const nestGraphQLEndpoint = <TContext extends EndpointContext>(params: NestGraph
           const {selectionSet} = fieldNode
           const {selections} = selectionSet!
           const queryField = selections.find(
-            (selection) => selection.kind === 'Field' && selection.name.value === 'query',
+            (selection) => selection.kind === Kind.FIELD && selection.name.value === 'query',
           )
           const mutationField = selections.find(
-            (selection) => selection.kind === 'Field' && selection.name.value === 'mutation',
+            (selection) => selection.kind === Kind.FIELD && selection.name.value === 'mutation',
           )
           if (queryField && mutationField) {
             return {

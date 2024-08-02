@@ -1,6 +1,8 @@
+// use this hack until fetch is included in node types
+/// <reference lib="dom" />
+
 import {schema} from '@octokit/graphql-schema'
 import {GraphQLObjectType, GraphQLResolveInfo, OperationDefinitionNode, parse, print} from 'graphql'
-import fetch from 'node-fetch'
 import nestGraphQLEndpoint from './nestGraphQLEndpoint'
 import {EndpointExecutionResult, Executor, NestedSource, NestGraphQLEndpointParams} from './types'
 
@@ -33,7 +35,7 @@ const defaultExecutor: Executor<{accessToken: string; headers?: Record<string, s
     })
     clearTimeout(timeout)
     const resJSON = (await result.json()) as EndpointExecutionResult | {message?: string}
-    if ('data' in resJSON || 'errors' in resJSON) return resJSON
+    if ('data' in resJSON) return resJSON
     const message = String(resJSON.message) || JSON.stringify(resJSON)
     return {
       errors: [

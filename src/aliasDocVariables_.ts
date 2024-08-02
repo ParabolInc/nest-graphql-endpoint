@@ -1,4 +1,4 @@
-import {DocumentNode, OperationDefinitionNode, VariableDefinitionNode, visit} from 'graphql'
+import {DocumentNode, Kind, OperationDefinitionNode, VariableDefinitionNode, visit} from 'graphql'
 import {Variables} from './types'
 
 interface CachedExecParams {
@@ -47,7 +47,7 @@ const aliasDocVariables_ = (
   const {document, variables} = execParams
 
   const operationDef = document.definitions.find(
-    (def) => def.kind === 'OperationDefinition',
+    (def) => def.kind === Kind.OPERATION_DEFINITION,
   ) as OperationDefinitionNode
   const {variableDefinitions} = operationDef
   const varDefMapper = getVarsAndDefMapper_(
@@ -82,8 +82,8 @@ const aliasDocVariables_ = (
         },
       }
     },
-    leave: {
-      OperationDefinition: (node) => {
+    OperationDefinition: {
+      leave: (node) => {
         const {variableDefinitions} = node
         if (!variableDefinitions) return undefined
         const usedVariableDefNames = new Set<string>()
