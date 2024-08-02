@@ -195,6 +195,7 @@ const todoResolver = (source, args, context, info) => {
 ### Limnitations
 
 - FragmentDefinitions are assumed equal if they have matching names (Relay compiler guarantees this)
+- @octokit/graphql-schema example is pinned at v14 to support CJS
 
 ### License
 
