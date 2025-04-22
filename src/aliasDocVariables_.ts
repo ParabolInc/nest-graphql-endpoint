@@ -22,7 +22,7 @@ const getVarsAndDefMapper_ = (
     const {value: varName} = name
     const varValue = variables[varName]
     const hasDirectives = directives && directives.length > 0
-    const entryWithSameValue = hasDirectives
+    const entryWithSameValue = hasDirectives || varValue === null || varValue === undefined
       ? undefined
       : Object.entries(baseVariables).find((entry) => entry[1] === varValue)
     if (entryWithSameValue) {

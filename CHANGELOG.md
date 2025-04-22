@@ -1,5 +1,9 @@
 # nest-graphql-endpoint
 
+## 0.8.2
+
+- Fix applied when calling mutations with optional vars
+
 ## 0.8.0
 
 - Bump deps
