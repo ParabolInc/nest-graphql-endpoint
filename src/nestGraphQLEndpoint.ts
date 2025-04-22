@@ -68,7 +68,8 @@ const nestGraphQLEndpoint = <TContext extends EndpointContext>(
       const {dataLoaderOptions} = context
       let transform: ReturnType<typeof transformNestedSelection>
       try {
-        transform = transformNestedSelection(schema, info, prefix, wrapper)
+        const operationType = isMutation ? 'mutation' : 'query'
+        transform = transformNestedSelection(schema, info, prefix, operationType, wrapper)
       } catch (e) {
         const errors = [{message: (e as Error).message || 'Transform error'}]
         if (source.resolveErrors) {
