@@ -14,13 +14,16 @@ import pruneInterfaces from './pruneInterfaces'
 import {Variables} from './types'
 
 // Transform the info fieldNodes into a standalone document AST
-const transformInfoIntoDoc = (info: GraphQLResolveInfo) => {
+const transformInfoIntoDoc = (info: GraphQLResolveInfo, operationType: 'query' | 'mutation') => {
+  if (!operationType) {
+    throw new Error('transformInfoIntoDoc requires an operationType parameter')
+  }
   return {
     kind: Kind.DOCUMENT,
     definitions: [
       {
-        kind: info.operation.kind,
-        operation: info.operation.operation,
+        kind: Kind.OPERATION_DEFINITION,
+        operation: operationType,
         variableDefinitions: info.operation.variableDefinitions || [],
         selectionSet: {
           kind: Kind.SELECTION_SET,
@@ -190,16 +193,17 @@ const transformNestedSelection = (
   schema: GraphQLSchema,
   info: GraphQLResolveInfo,
   prefix: string,
+  operationType: 'query' | 'mutation',
   wrapper?: DocumentNode,
 ) => {
   if (!wrapper) {
-    const infoDoc = transformInfoIntoDoc(info)
+    const infoDoc = transformInfoIntoDoc(info, operationType)
     const {variables, document: prefixedDoc} = pruneUnused(infoDoc, info.variableValues)
     const unprefixedDocument = unprefixTypes(prefixedDoc, prefix)
     const document = pruneExtendedFields(schema, unprefixedDocument)
     return {document, variables, wrappedPath: undefined}
   }
-  const fieldNodesDoc = transformInfoIntoDoc(info)
+  const fieldNodesDoc = transformInfoIntoDoc(info, operationType)
   const fieldNodesWithoutLocalInterfacesDoc = pruneInterfaces(fieldNodesDoc, prefix, info)
   const unprefixedFieldNodesDoc = unprefixTypes(fieldNodesWithoutLocalInterfacesDoc, prefix)
   const {document: mergedDoc, wrappedPath} = mergeFieldNodesAndWrapper(

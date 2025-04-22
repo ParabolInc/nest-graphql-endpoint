@@ -1,5 +1,10 @@
 # nest-graphql-endpoint
 
+## 0.8.3
+
+- Fix: don't infer operation type from parent query in
+  `transformNestedSelection`, instead use explicit `isMutation` flag
+
 ## 0.8.2
 
 - Fix applied when calling mutations with optional vars
