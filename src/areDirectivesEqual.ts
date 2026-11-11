@@ -1,5 +1,5 @@
-import {DirectiveNode} from 'graphql'
-import areArgsEqual from './areArgsEqual'
+import type {DirectiveNode} from 'graphql'
+import areArgsEqual from './areArgsEqual.ts'
 
 const areDirectivesEqual = (
   aDirectives: readonly DirectiveNode[] | null | undefined,

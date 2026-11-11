@@ -7,8 +7,10 @@ https://www.parabol.co/blog/nest-github-api-in-graphql-schema
 ### Install
 
 ```sh
-yarn add nest-graphql-endpoint
+pnpm add nest-graphql-endpoint graphql
 ```
+
+The package is ESM only and needs Node 22.18 or later, where CommonJS can `require()` it too.
 
 ### What's it do?
 
@@ -64,17 +66,16 @@ query {
 
 ```ts
 import {schema} from './mySchema'
-import nestGraphQLEndpoint from 'nest-graphql-endpoint'
+import {nestGraphQLEndpoint, nestGraphQLEndpoints} from 'nest-graphql-endpoint'
 import {print} from 'graphql'
 import schemaIDL from './remoteSchemaIDL'
 
-return nestGraphQLEndpoint({
-  parentSchema: schema,
+const github = nestGraphQLEndpoint({
   parentType: 'User',
   fieldName: 'github',
   resolveEndpointContext: (source) => ({accessToken: source.accessToken}),
   executor: (document, variables, context) => {
-    // Example executor fn not for production! See nestGitHubEndpoint for a production-ready executor
+    // Example executor fn not for production! It needs a timeout, error handling, etc.
     return fetch('https://foo.co', {
       headers: {
         Authorization: `Bearer ${context.accessToken}`,
@@ -86,30 +87,47 @@ return nestGraphQLEndpoint({
   batchKey: 'accessToken',
   schemaIDL,
 })
+
+// nest as many endpoints as you like, all in one schema build
+export default nestGraphQLEndpoints(schema, [github])
 ```
 
-As a convenience, this package includes a helper for GitHub's API. If you'd like to add other endpoints, please make a PR.
+### Only build the nested types you use
 
-### Example using GitHub's API
+A big endpoint like GitHub's has thousands of types, and building them takes most of a server's startup.
+If you know the operations your app sends, e.g. persisted queries, build only what they use:
 
 ```ts
-import {schema} from './mySchema'
-import nestGitHubEndpoint from 'nest-graphql-endpoint/lib/nestGitHubEndpoint'
+import {buildSchema, parse} from 'graphql'
+import {getNestedUsage, nestGraphQLEndpoints} from 'nest-graphql-endpoint'
 
-return nestGitHubEndpoint({
-  parentSchema: schema,
-  parentType: 'User',
-  fieldName: 'github',
-  // Assumes a `githubToken` is on the User object
-  // GitHub preview is being phased out, but still requires a custom header to access preview features
-  resolveEndpointContext: (source) => ({
-    accessToken: source.githubToken,
-    headers: {Accept: 'application/vnd.github.bane-preview+json'},
-  }),
-}).schema
+// at build time, against a schema printed with every nested type
+const usage = getNestedUsage(
+  buildSchema(fullSDL),
+  persistedQueries.map((query) => parse(query)),
+  ['_extEndpoint'],
+)
+
+// at runtime
+const schema = nestGraphQLEndpoints(parentSchema, [github], {usage})
 ```
 
-Note: Requires Node v15.0.0 to use the native `AbortController`
+Every union member & interface implementation of a used type is kept, and each kept type has at least 1 field, so the schema is always valid.
+Usage is keyed by the prefixed type name. Add the fields your own resolvers define on nested types to it, too.
+
+An operation the usage didn't foresee, like an ad-hoc query, can use a schema with every nested type instead.
+`findMissingNestedField` returns the first nested type or field the schema left out, so you can build that schema the first time you need it:
+
+```ts
+import {findMissingNestedField} from 'nest-graphql-endpoint'
+
+if (findMissingNestedField(schema, document, [github])) {
+  fullSchema ??= nestGraphQLEndpoints(parentSchema, [github])
+  // execute the document against fullSchema
+}
+```
+
+A field the endpoint doesn't have either isn't missing, and introspection (`__schema`, `__type`) is, since it describes the whole schema.
 
 ### Example field resolution
 
@@ -161,14 +179,13 @@ const ShowTodo = (props) => {
 
 ```ts
 // Backend
-const {schema, githubRequest} = nestGitHubEndpoint({...})
+const github = nestGraphQLEndpoint({...})
 
-const todoResolver = (source, args, context, info) => {
+const todoResolver = async (source, args, context, info) => {
   if (source.type === 'github') {
-    const ghContext = {accessToken: '123'}
     const {nameWithOwner, issueNumber} = source
     const [repoOwner, repoName] = nameWithOwner.split('/')
-    const wrapper = `
+    const query = `
           {
             repository(owner: "${repoOwner}", name: "${repoName}") {
               issue(number: ${issueNumber}) {
@@ -176,8 +193,14 @@ const todoResolver = (source, args, context, info) => {
               }
             }
           }`
-    const {data, errors} = await githubRequest(wrapper, ghContext, context, info)
-    return data // returns
+    const {data, errors} = await github.request({
+      query,
+      endpointContext: {accessToken: '123'},
+      // shares the batch with the rest of this execution
+      batchRef: context,
+      info,
+    })
+    return data
   }
 }
 ```
@@ -192,10 +215,26 @@ const todoResolver = (source, args, context, info) => {
 6. When the endpoint responds, it will de-alias the response, re-apply the `__typename` prefix, and filter the errors by path
 7. For field resolvers, it removes any types that don't exist on the endpoint & then sends the request.
 
-### Limnitations
+### Limitations
 
 - FragmentDefinitions are assumed equal if they have matching names (Relay compiler guarantees this)
-- @octokit/graphql-schema example is pinned at v14 to support CJS
+
+### Development
+
+```sh
+pnpm install
+pnpm test       # node --test, running the TypeScript sources directly
+pnpm check      # Biome
+pnpm typecheck
+pnpm build      # dist/, which `pnpm pack` & `pnpm publish` build for you
+```
+
+### Releasing
+
+Every merge to `main` publishes the version in `package.json` to npm, unless npm already has it, and creates a GitHub release with that version's CHANGELOG entry.
+So a PR that should ship bumps the version and adds its CHANGELOG entry, and a PR that doesn't publishes nothing.
+A prerelease version, like `1.1.0-beta.0`, is published under the `next` tag instead of `latest`.
+GitHub Actions publishes through npm's trusted publishing, with provenance, so there's no npm token to keep.
 
 ### License
 

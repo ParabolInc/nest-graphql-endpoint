@@ -1,5 +1,11 @@
-import {DocumentNode, Kind, OperationDefinitionNode, VariableDefinitionNode, visit} from 'graphql'
-import {Variables} from './types'
+import {
+  type DocumentNode,
+  Kind,
+  type OperationDefinitionNode,
+  type VariableDefinitionNode,
+  visit,
+} from 'graphql'
+import type {Variables} from './types.ts'
 
 interface CachedExecParams {
   document: DocumentNode
@@ -22,9 +28,10 @@ const getVarsAndDefMapper_ = (
     const {value: varName} = name
     const varValue = variables[varName]
     const hasDirectives = directives && directives.length > 0
-    const entryWithSameValue = hasDirectives || varValue === null || varValue === undefined
-      ? undefined
-      : Object.entries(baseVariables).find((entry) => entry[1] === varValue)
+    const entryWithSameValue =
+      hasDirectives || varValue === null || varValue === undefined
+        ? undefined
+        : Object.entries(baseVariables).find((entry) => entry[1] === varValue)
     if (entryWithSameValue) {
       // reuse a variable that has the same value
       varDefMapper[varName] = entryWithSameValue[0]

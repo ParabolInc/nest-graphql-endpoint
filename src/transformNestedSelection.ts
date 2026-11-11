@@ -1,17 +1,17 @@
 import {
-  DocumentNode,
-  FieldNode,
-  FragmentDefinitionNode,
-  GraphQLResolveInfo,
-  GraphQLSchema,
+  type DocumentNode,
+  type FieldNode,
+  type FragmentDefinitionNode,
+  type GraphQLResolveInfo,
+  type GraphQLSchema,
   Kind,
-  OperationDefinitionNode,
+  type OperationDefinitionNode,
   TypeInfo,
   visit,
   visitWithTypeInfo,
 } from 'graphql'
-import pruneInterfaces from './pruneInterfaces'
-import {Variables} from './types'
+import pruneInterfaces from './pruneInterfaces.ts'
+import type {Variables} from './types.ts'
 
 // Transform the info fieldNodes into a standalone document AST
 const transformInfoIntoDoc = (info: GraphQLResolveInfo, operationType: 'query' | 'mutation') => {

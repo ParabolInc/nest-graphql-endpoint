@@ -1,4 +1,4 @@
-import {AliasMap, EndpointResponseData} from './types'
+import type {AliasMap, EndpointResponseData} from './types.ts'
 
 const renameResponseTypenames = (
   response: EndpointResponseData,

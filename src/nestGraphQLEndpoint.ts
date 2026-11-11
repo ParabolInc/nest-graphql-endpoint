@@ -1,26 +1,32 @@
-import {makeExecutableSchema, mergeSchemas} from '@graphql-tools/schema'
-import {RenameRootTypes, RenameTypes, wrapSchema} from '@graphql-tools/wrap'
-import {GraphQLObjectType, GraphQLResolveInfo, GraphQLSchema, Kind, isObjectType} from 'graphql'
-import getRequestDataLoader from './getDataLoader'
-import transformNestedSelection from './transformNestedSelection'
-import {EndpointContext, ExecutionRef, NestedSource, NestGraphQLEndpointParams} from './types'
-
-// if a field is aliased in the request that alias will be the key in the `source` object
-const externalResolver = (
-  source: any,
-  _args: any,
-  _context: ExecutionRef,
-  info: GraphQLResolveInfo,
-) => {
-  const key = info.fieldNodes[0]!.alias?.value ?? info.fieldName
-  return source[key]
-}
+import {
+  buildSchema,
+  type GraphQLObjectType,
+  type GraphQLResolveInfo,
+  type GraphQLSchema,
+  Kind,
+  type OperationDefinitionNode,
+  parse,
+} from 'graphql'
+import getRequestDataLoader from './getDataLoader.ts'
+import getNestedUsage, {findMissingNestedField, mergeNestedUsage} from './getNestedUsage.ts'
+import nestGraphQLEndpoints from './nestGraphQLEndpoints.ts'
+import prefixTypeDefs, {isNestableDefinition} from './prefixTypeDefs.ts'
+import pruneTypeDefs from './pruneTypeDefs.ts'
+import transformNestedSelection from './transformNestedSelection.ts'
+import type {
+  EndpointContext,
+  ExecutionRef,
+  NestedEndpoint,
+  NestedRequestInput,
+  NestedSource,
+  NestedUsage,
+  NestGraphQLEndpointParams,
+} from './types.ts'
 
 const nestGraphQLEndpoint = <TContext extends EndpointContext>(
   params: NestGraphQLEndpointParams<TContext>,
-) => {
+): NestedEndpoint => {
   const {
-    parentSchema,
     parentType,
     fieldName,
     resolveEndpointContext,
@@ -30,30 +36,28 @@ const nestGraphQLEndpoint = <TContext extends EndpointContext>(
     batchKey = 'accessToken',
     endpointTimeout = 10000,
   } = params
-  const prefixEndpoint = (name: string) => `${prefix}${name}`
-  const schema = makeExecutableSchema({
-    typeDefs: schemaIDL,
-  })
 
-  const transformedEndpointSchema = wrapSchema({
-    schema,
-    transforms: [new RenameRootTypes(prefixEndpoint), new RenameTypes(prefixEndpoint)],
-  })
-  // overwrite the resolves that wrapSchema added
-  const typeMap = transformedEndpointSchema.getTypeMap()
-  const isPublicObjectType = (type: any): type is GraphQLObjectType => {
-    // private types include things like __Schema, __Type, __Directive
-    // those already have their own resolvers that we do not want to overwrite
-    return isObjectType(type) && !type.name.startsWith('__')
-  }
-  Object.values(typeMap)
-    .filter(isPublicObjectType)
-    .forEach((gqlObject) => {
-      const fields = gqlObject.getFields()
-      Object.values(fields).forEach((field) => {
-        field.resolve = externalResolver
-      })
+  const getTypeDefs = (usage?: NestedUsage) => {
+    const document = parse(schemaIDL, {noLocation: true})
+    const nestableDocument = {
+      ...document,
+      definitions: document.definitions.filter(isNestableDefinition),
+    }
+    if (!usage) return prefixTypeDefs(nestableDocument, prefix)
+    // the Api type returns both root types
+    const endpointUsage: Record<string, readonly string[]> = {Query: [], Mutation: []}
+    Object.entries(usage).forEach(([typeName, fieldNames]) => {
+      if (typeName.startsWith(prefix)) endpointUsage[typeName.slice(prefix.length)] = fieldNames
     })
+    return prefixTypeDefs(pruneTypeDefs(nestableDocument, endpointUsage), prefix)
+  }
+
+  // only needed to transform a nested request, so the first one builds it
+  let endpointSchema: GraphQLSchema | undefined
+  const getEndpointSchema = () => {
+    endpointSchema ??= buildSchema(schemaIDL, {assumeValidSDL: true})
+    return endpointSchema
+  }
 
   const resolveOperation =
     (isMutation?: boolean) =>
@@ -69,7 +73,13 @@ const nestGraphQLEndpoint = <TContext extends EndpointContext>(
       let transform: ReturnType<typeof transformNestedSelection>
       try {
         const operationType = isMutation ? 'mutation' : 'query'
-        transform = transformNestedSelection(schema, info, prefix, operationType, wrapper)
+        transform = transformNestedSelection(
+          getEndpointSchema(),
+          info,
+          prefix,
+          operationType,
+          wrapper,
+        )
       } catch (e) {
         const errors = [{message: (e as Error).message || 'Transform error'}]
         if (source.resolveErrors) {
@@ -104,9 +114,7 @@ const nestGraphQLEndpoint = <TContext extends EndpointContext>(
         : res.data
     }
 
-  return mergeSchemas({
-    schemas: [transformedEndpointSchema, parentSchema],
-    typeDefs: `
+  const parentTypeDefs = `
       type ${prefix}ErrorLocation {
         line: Int!
         column: Int!
@@ -123,81 +131,109 @@ const nestGraphQLEndpoint = <TContext extends EndpointContext>(
       }
       extend type ${parentType} {
         ${fieldName}: ${prefix}Api
-      }`,
-    resolvers: {
-      [parentType]: {
-        [fieldName]: async (
-          source: any,
-          args: any,
-          context: ExecutionRef,
-          info: GraphQLResolveInfo,
-        ) => {
-          const {fieldNodes} = info
-          const [fieldNode] = fieldNodes
-          const {selectionSet} = fieldNode
-          const {selections} = selectionSet!
-          const queryField = selections.find(
-            (selection) => selection.kind === Kind.FIELD && selection.name.value === 'query',
-          )
-          const mutationField = selections.find(
-            (selection) => selection.kind === Kind.FIELD && selection.name.value === 'mutation',
-          )
-          if (queryField && mutationField) {
-            return {
-              errors: [
-                {
-                  message: 'Request can only include query or mutation',
-                },
-              ],
-            }
+      }`
+
+  const resolvers = {
+    [parentType]: {
+      [fieldName]: async (
+        source: any,
+        args: any,
+        context: ExecutionRef,
+        info: GraphQLResolveInfo,
+      ) => {
+        const {fieldNodes} = info
+        const [fieldNode] = fieldNodes
+        const {selectionSet} = fieldNode!
+        const {selections} = selectionSet!
+        const queryField = selections.find(
+          (selection) => selection.kind === Kind.FIELD && selection.name.value === 'query',
+        )
+        const mutationField = selections.find(
+          (selection) => selection.kind === Kind.FIELD && selection.name.value === 'mutation',
+        )
+        if (queryField && mutationField) {
+          return {
+            errors: [
+              {
+                message: 'Request can only include query or mutation',
+              },
+            ],
           }
-          if (!queryField && !mutationField) {
-            return {
-              errors: [
-                {
-                  message: 'No query or mutation operation provided',
-                },
-              ],
-            }
+        }
+        if (!queryField && !mutationField) {
+          return {
+            errors: [
+              {
+                message: 'No query or mutation operation provided',
+              },
+            ],
           }
-          let endpointContext
-          try {
-            endpointContext = await resolveEndpointContext(source, args, context, info)
-          } catch (e) {
-            return {
-              errors: [
-                {
-                  message: (e as Error).message || 'No endpoint context provided',
-                },
-              ],
-            }
+        }
+        let endpointContext: TContext
+        try {
+          endpointContext = await resolveEndpointContext(source, args, context, info)
+        } catch (e) {
+          return {
+            errors: [
+              {
+                message: (e as Error).message || 'No endpoint context provided',
+              },
+            ],
           }
-          return {context: endpointContext}
-        },
-      },
-      [`${prefix}Api`]: {
-        errors: (source: NestedSource<TContext>) => {
-          // If an error was triggered before fetch, abort early
-          if (source.errors) return source.errors
-          // If a fetch is already in flight, re-use the same promise
-          if (source.errorPromise) return source.errorPromise
-          // If the endpoint returns errors, populate the errors field
-          source.errorPromise = new Promise((resolve) => {
-            const timeout = setTimeout(() => {
-              resolve([{message: `${prefix}: Resolution Timeout`}])
-            }, endpointTimeout + 30)
-            source.resolveErrors = (errors) => {
-              clearTimeout(timeout)
-              resolve(errors)
-            }
-          })
-          return source.errorPromise
-        },
-        query: resolveOperation(),
-        mutation: resolveOperation(true),
+        }
+        return {context: endpointContext}
       },
     },
-  }) as GraphQLSchema
+    [`${prefix}Api`]: {
+      errors: (source: NestedSource<TContext>) => {
+        // If an error was triggered before fetch, abort early
+        if (source.errors) return source.errors
+        // If a fetch is already in flight, re-use the same promise
+        if (source.errorPromise) return source.errorPromise
+        // If the endpoint returns errors, populate the errors field
+        source.errorPromise = new Promise((resolve) => {
+          const timeout = setTimeout(() => {
+            resolve([{message: `${prefix}: Resolution Timeout`}])
+          }, endpointTimeout + 30)
+          source.resolveErrors = (errors) => {
+            clearTimeout(timeout)
+            resolve(errors)
+          }
+        })
+        return source.errorPromise
+      },
+      query: resolveOperation(),
+      mutation: resolveOperation(true),
+    },
+  }
+
+  const request = async <TData = any, TVars = any>(input: NestedRequestInput<TVars>) => {
+    const {query, endpointContext, variables, batchRef, info} = input
+    const api = info.schema.getType(`${prefix}Api`) as GraphQLObjectType
+    const wrapper = parse(query)
+    const {operation} = wrapper.definitions[0] as OperationDefinitionNode
+    const rootOperation = api.getFields()[operation]
+    if (!rootOperation) throw new Error(`Unsupported operation: ${operation}`)
+    const source = {
+      context: endpointContext,
+      wrapper,
+      wrapperVars: variables,
+    } as NestedSource<any>
+    const data = (await rootOperation.resolve!(source, {}, batchRef ?? {}, info)) as TData
+    return {data, errors: source.errors}
+  }
+
+  return {prefix, getTypeDefs, getEndpointSchema, parentTypeDefs, resolvers, request}
 }
 
+export type {NestGraphQLEndpointsOptions} from './nestGraphQLEndpoints.ts'
+export * from './types.ts'
+export {
+  findMissingNestedField,
+  getNestedUsage,
+  mergeNestedUsage,
+  nestGraphQLEndpoint,
+  nestGraphQLEndpoints,
+  pruneTypeDefs,
+}
 export default nestGraphQLEndpoint

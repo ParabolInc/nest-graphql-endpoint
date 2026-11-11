@@ -1,4 +1,4 @@
-import {AliasMap} from './types'
+import type {AliasMap} from './types.ts'
 
 const dealiasResult = (data: Record<string, any> | null, aliasMap: AliasMap) => {
   if (!data || Object.keys(aliasMap).length === 0) return data

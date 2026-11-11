@@ -1,5 +1,6 @@
-import DataLoader, { Options } from 'dataloader'
-import { DocumentNode, GraphQLResolveInfo, GraphQLSchema } from 'graphql'
+import type DataLoader from 'dataloader'
+import type {Options} from 'dataloader'
+import type {DocumentNode, GraphQLResolveInfo, GraphQLSchema} from 'graphql'
 
 export interface BaseGraphQLError {
   message: string
@@ -22,7 +23,7 @@ export interface EndpointExecutionResult {
 
 export interface EndpointContext {
   accessToken?: string
-  dataLoaderOptions?: Options<any,any>
+  dataLoaderOptions?: Options<any, any>
   [key: string]: any
 }
 
@@ -49,7 +50,6 @@ type ResolveEndpointContext<TContext> = (
 ) => TContext | Promise<TContext>
 
 export interface NestGraphQLEndpointParams<TContext> {
-  parentSchema: GraphQLSchema
   parentType: string
   fieldName: string
   resolveEndpointContext: ResolveEndpointContext<TContext>
@@ -95,3 +95,39 @@ interface AliasMapEntry {
 }
 
 export type AliasMap = Record<string, AliasMapEntry>
+
+// The fields operations select on each nested type, keyed by the type's prefixed name.
+// A type listed without fields is kept with as few fields as a valid schema allows
+export type NestedUsage = Record<string, readonly string[]>
+
+export interface NestedRequestInput<TVars> {
+  query: string
+  endpointContext: Record<string, any>
+  info: GraphQLResolveInfo
+  // only necessary if the query needs them
+  variables?: TVars
+  // to reuse a dataloader, pass in your execution context object
+  batchRef?: Record<any, any>
+}
+
+export interface NestedRequestResult<TData> {
+  data: TData
+  errors: BaseGraphQLError[] | null | undefined
+}
+
+export type NestedResolvers = Record<string, Record<string, any>>
+
+export interface NestedEndpoint {
+  prefix: string
+  // the endpoint's types with the prefix, only the parts `usage` needs when it is given
+  getTypeDefs: (usage?: NestedUsage) => DocumentNode
+  // the endpoint's own schema, without the prefix. The first nested request builds it
+  getEndpointSchema: () => GraphQLSchema
+  // the Api & Error types, and the field that extends the parent type with the Api
+  parentTypeDefs: string
+  resolvers: NestedResolvers
+  // runs a query against the endpoint from inside a resolver, sharing the execution's batch
+  request: <TData = any, TVars = any>(
+    input: NestedRequestInput<TVars>,
+  ) => Promise<NestedRequestResult<TData>>
+}

@@ -1,4 +1,4 @@
-import {ArgumentNode, Kind, print} from 'graphql'
+import {type ArgumentNode, Kind, print} from 'graphql'
 
 const printArgs = (argArr: readonly ArgumentNode[]) => {
   return print({
