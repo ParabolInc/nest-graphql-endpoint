@@ -1,9 +1,14 @@
-import DataLoader, { Options } from 'dataloader'
-import batchFn from './batchFn'
-import { DataLoaderKey, EndpointDataLoader, EndpointExecutionResult, ExecutionRef } from './types'
+import DataLoader, {type Options} from 'dataloader'
+import batchFn from './batchFn.ts'
+import type {
+  DataLoaderKey,
+  EndpointDataLoader,
+  EndpointExecutionResult,
+  ExecutionRef,
+} from './types.ts'
 
 const dataloaderCache = new WeakMap<ExecutionRef, EndpointDataLoader<any>>()
-const getDataLoader = (ref: ExecutionRef, dataLoaderOptions?: Options<any,any>) => {
+const getDataLoader = (ref: ExecutionRef, dataLoaderOptions?: Options<any, any>) => {
   const existingDataLoader = dataloaderCache.get(ref)
   if (existingDataLoader) return existingDataLoader
   const newDataLoader = new DataLoader<DataLoaderKey<any>, EndpointExecutionResult>(batchFn, {

@@ -1,14 +1,14 @@
 import {
   BREAK,
-  DocumentNode,
-  GraphQLSchema,
+  type DocumentNode,
+  type GraphQLSchema,
   isInterfaceType,
   isObjectType,
   TypeInfo,
   visit,
   visitWithTypeInfo,
 } from 'graphql'
-import {NestedEndpoint, NestedUsage} from './types'
+import type {NestedEndpoint, NestedUsage} from './types.ts'
 
 // The nested types & fields that the documents select, so a schema can be built with only those
 const getNestedUsage = (

@@ -1,10 +1,10 @@
-import {DocumentNode} from 'graphql'
-import dealiasResult from './dealiasResult'
-import filterErrorsForDocument from './filterErrorsForDocument'
-import mergeGQLDocuments from './mergeGQLDocuments'
-import renameResponseTypenames_ from './renameResponseTypenames_'
-import {DataLoaderKey, EndpointExecutionResult, Variables} from './types'
-import wrapExecutor from './wrapExecutor'
+import type {DocumentNode} from 'graphql'
+import dealiasResult from './dealiasResult.ts'
+import filterErrorsForDocument from './filterErrorsForDocument.ts'
+import mergeGQLDocuments from './mergeGQLDocuments.ts'
+import renameResponseTypenames_ from './renameResponseTypenames_.ts'
+import type {DataLoaderKey, EndpointExecutionResult, Variables} from './types.ts'
+import wrapExecutor from './wrapExecutor.ts'
 
 interface BatchedExecParams<TContext> {
   document: DocumentNode
@@ -23,22 +23,25 @@ const batchFn = async <TContext extends Record<string, any>>(
   const {options} = firstKey
   const {batchKey, endpointTimeout, executor, isMutation, prefix} = options
   const wrappedExecutor = wrapExecutor(executor)
-  const execParamsByToken = keys.reduce((obj, key, idx) => {
-    const {context} = key
-    const accessToken = context[batchKey]
-    if (typeof accessToken !== 'string') {
-      throw new Error('Access token not provided')
-    }
-    if (!accessToken) return obj
-    obj[accessToken] = obj[accessToken] || []
-    obj[accessToken].push({
-      document: key.document,
-      variables: key.variables,
-      context,
-      idx,
-    })
-    return obj
-  }, {} as ExecParamsByToken<TContext>)
+  const execParamsByToken = keys.reduce(
+    (obj, key, idx) => {
+      const {context} = key
+      const accessToken = context[batchKey]
+      if (typeof accessToken !== 'string') {
+        throw new Error('Access token not provided')
+      }
+      if (!accessToken) return obj
+      obj[accessToken] = obj[accessToken] || []
+      obj[accessToken].push({
+        document: key.document,
+        variables: key.variables,
+        context,
+        idx,
+      })
+      return obj
+    },
+    {} as ExecParamsByToken<TContext>,
+  )
 
   const results = [] as EndpointExecutionResult[]
   await Promise.all(

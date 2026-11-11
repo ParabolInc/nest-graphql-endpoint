@@ -1,9 +1,9 @@
 import {
-  ASTNode,
-  DefinitionNode,
-  DocumentNode,
+  type ASTNode,
+  type DefinitionNode,
+  type DocumentNode,
   Kind,
-  NameNode,
+  type NameNode,
   specifiedDirectives,
   specifiedScalarTypes,
   visit,

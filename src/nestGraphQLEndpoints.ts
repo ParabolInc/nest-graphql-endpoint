@@ -1,15 +1,15 @@
 import {makeExecutableSchema} from '@graphql-tools/schema'
 import {getResolversFromSchema} from '@graphql-tools/utils'
 import {
-  DocumentNode,
-  GraphQLFieldResolver,
-  GraphQLSchema,
+  type DocumentNode,
+  type GraphQLFieldResolver,
+  type GraphQLSchema,
   isInterfaceType,
   isObjectType,
   Kind,
 } from 'graphql'
-import {mergeNestedUsage} from './getNestedUsage'
-import {NestedEndpoint, NestedResolvers, NestedUsage} from './types'
+import {mergeNestedUsage} from './getNestedUsage.ts'
+import type {NestedEndpoint, NestedResolvers, NestedUsage} from './types.ts'
 
 export interface NestGraphQLEndpointsOptions {
   // build only the nested types & fields these name, see getNestedUsage
@@ -38,7 +38,9 @@ const getExternalResolvers = (endpointTypeDefs: DocumentNode) => {
     ) {
       return
     }
-    const fieldResolvers = (resolvers[definition.name.value] ??= {})
+    const typeName = definition.name.value
+    resolvers[typeName] ??= {}
+    const fieldResolvers = resolvers[typeName]
     definition.fields?.forEach((field) => {
       fieldResolvers[field.name.value] = {resolve: externalResolver}
     })

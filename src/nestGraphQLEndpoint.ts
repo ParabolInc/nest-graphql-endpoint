@@ -1,19 +1,19 @@
 import {
   buildSchema,
-  GraphQLObjectType,
-  GraphQLResolveInfo,
-  GraphQLSchema,
+  type GraphQLObjectType,
+  type GraphQLResolveInfo,
+  type GraphQLSchema,
   Kind,
-  OperationDefinitionNode,
+  type OperationDefinitionNode,
   parse,
 } from 'graphql'
-import getNestedUsage, {findMissingNestedField, mergeNestedUsage} from './getNestedUsage'
-import getRequestDataLoader from './getDataLoader'
-import nestGraphQLEndpoints from './nestGraphQLEndpoints'
-import prefixTypeDefs, {isNestableDefinition} from './prefixTypeDefs'
-import pruneTypeDefs from './pruneTypeDefs'
-import transformNestedSelection from './transformNestedSelection'
-import {
+import getRequestDataLoader from './getDataLoader.ts'
+import getNestedUsage, {findMissingNestedField, mergeNestedUsage} from './getNestedUsage.ts'
+import nestGraphQLEndpoints from './nestGraphQLEndpoints.ts'
+import prefixTypeDefs, {isNestableDefinition} from './prefixTypeDefs.ts'
+import pruneTypeDefs from './pruneTypeDefs.ts'
+import transformNestedSelection from './transformNestedSelection.ts'
+import type {
   EndpointContext,
   ExecutionRef,
   NestedEndpoint,
@@ -21,7 +21,7 @@ import {
   NestedSource,
   NestedUsage,
   NestGraphQLEndpointParams,
-} from './types'
+} from './types.ts'
 
 const nestGraphQLEndpoint = <TContext extends EndpointContext>(
   params: NestGraphQLEndpointParams<TContext>,
@@ -169,7 +169,7 @@ const nestGraphQLEndpoint = <TContext extends EndpointContext>(
             ],
           }
         }
-        let endpointContext
+        let endpointContext: TContext
         try {
           endpointContext = await resolveEndpointContext(source, args, context, info)
         } catch (e) {
@@ -226,13 +226,14 @@ const nestGraphQLEndpoint = <TContext extends EndpointContext>(
   return {prefix, getTypeDefs, getEndpointSchema, parentTypeDefs, resolvers, request}
 }
 
+export type {NestGraphQLEndpointsOptions} from './nestGraphQLEndpoints.ts'
+export * from './types.ts'
 export {
   findMissingNestedField,
   getNestedUsage,
   mergeNestedUsage,
+  nestGraphQLEndpoint,
   nestGraphQLEndpoints,
   pruneTypeDefs,
 }
-export type {NestGraphQLEndpointsOptions} from './nestGraphQLEndpoints'
-export * from './types'
 export default nestGraphQLEndpoint

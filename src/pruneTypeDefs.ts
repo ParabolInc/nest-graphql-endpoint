@@ -1,10 +1,10 @@
 import {
-  DefinitionNode,
-  DocumentNode,
-  FieldDefinitionNode,
-  InputValueDefinitionNode,
+  type DefinitionNode,
+  type DocumentNode,
+  type FieldDefinitionNode,
+  type InputValueDefinitionNode,
   Kind,
-  TypeNode,
+  type TypeNode,
 } from 'graphql'
 
 interface TypeEntry {
@@ -43,8 +43,8 @@ const indexTypes = (document: DocumentNode) => {
           definition.kind === Kind.INTERFACE_TYPE_DEFINITION ||
           definition.kind === Kind.INTERFACE_TYPE_EXTENSION
         const entry = getEntry(definition.name.value, 'fielded', isInterface)
-        definition.fields?.forEach((field) => entry.fields.set(field.name.value, field))
-        definition.interfaces?.forEach((iface) => entry.interfaces.push(iface.name.value))
+        for (const field of definition.fields ?? []) entry.fields.set(field.name.value, field)
+        for (const iface of definition.interfaces ?? []) entry.interfaces.push(iface.name.value)
         break
       }
       case Kind.UNION_TYPE_DEFINITION:
@@ -104,7 +104,7 @@ const pruneTypeDefs = (
     } else if (entry.kind === 'union') {
       entry.members.forEach(keepType)
     } else if (entry.kind === 'input') {
-      entry.inputFields.forEach((field) => keepType(getNamedTypeName(field.type)))
+      for (const field of entry.inputFields) keepType(getNamedTypeName(field.type))
     }
   }
 
@@ -118,18 +118,18 @@ const pruneTypeDefs = (
       if (!field || kept.has(fieldName)) return
       kept.add(fieldName)
       keepType(getNamedTypeName(field.type))
-      field.arguments?.forEach((arg) => keepType(getNamedTypeName(arg.type)))
+      for (const arg of field.arguments ?? []) keepType(getNamedTypeName(arg.type))
       if (entry.isInterface) {
-        implementations.get(typeName)?.forEach((impl) => keepFields(impl, [fieldName]))
+        for (const impl of implementations.get(typeName) ?? []) keepFields(impl, [fieldName])
       }
     })
   }
 
   document.definitions.forEach((definition) => {
     if (definition.kind !== Kind.DIRECTIVE_DEFINITION) return
-    definition.arguments?.forEach((arg) => keepType(getNamedTypeName(arg.type)))
+    for (const arg of definition.arguments ?? []) keepType(getNamedTypeName(arg.type))
   })
-  Object.entries(usage).forEach(([typeName, fieldNames]) => keepFields(typeName, fieldNames))
+  for (const [typeName, fieldNames] of Object.entries(usage)) keepFields(typeName, fieldNames)
 
   // A type kept for a union, an interface or a return type still needs a field, so it gets the cheapest one
   const isLeaf = (typeName: string) => {

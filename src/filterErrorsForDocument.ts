@@ -1,5 +1,11 @@
-import {DocumentNode, FieldNode, Kind, OperationDefinitionNode, SelectionSetNode} from 'graphql'
-import {GraphQLEndpointError} from './types'
+import {
+  type DocumentNode,
+  type FieldNode,
+  Kind,
+  type OperationDefinitionNode,
+  type SelectionSetNode,
+} from 'graphql'
+import type {GraphQLEndpointError} from './types.ts'
 
 const visitDocFotPath = (path: (string | number)[], selectionSetNode: SelectionSetNode) => {
   let isPathInDoc = true
@@ -31,7 +37,7 @@ const filterErrorsForDocument = (
   document: DocumentNode,
   errors?: GraphQLEndpointError[] | null,
 ) => {
-  if (!errors || !errors.length) return errors
+  if (!errors?.length) return errors
   const {definitions} = document
   const operationNode = definitions.find(
     (definition) => definition.kind === Kind.OPERATION_DEFINITION,

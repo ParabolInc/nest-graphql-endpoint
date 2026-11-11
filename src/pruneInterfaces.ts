@@ -1,13 +1,13 @@
 import {
   BREAK,
-  DocumentNode,
-  FragmentDefinitionNode,
+  type DocumentNode,
+  type FragmentDefinitionNode,
+  type GraphQLResolveInfo,
   getNamedType,
-  GraphQLResolveInfo,
-  InlineFragmentNode,
+  type InlineFragmentNode,
   isAbstractType,
   isLeafType,
-  visit
+  visit,
 } from 'graphql'
 
 const pruneLocalTypes = (doc: DocumentNode, prefix: string, info: GraphQLResolveInfo) => {
@@ -16,7 +16,7 @@ const pruneLocalTypes = (doc: DocumentNode, prefix: string, info: GraphQLResolve
   if (rootType.name.startsWith(prefix) || isLeafType(rootType)) return doc
   // we know the type is a local type, which means it's either an interface or union
 
-  let errorMultipleTypes: undefined | string[] = undefined
+  let errorMultipleTypes: undefined | string[]
 
   const fragmentVisitor = (node: InlineFragmentNode | FragmentDefinitionNode) => {
     const {typeCondition} = node

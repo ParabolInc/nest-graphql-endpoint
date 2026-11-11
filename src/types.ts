@@ -1,5 +1,6 @@
-import DataLoader, {Options} from 'dataloader'
-import {DocumentNode, GraphQLResolveInfo, GraphQLSchema} from 'graphql'
+import type DataLoader from 'dataloader'
+import type {Options} from 'dataloader'
+import type {DocumentNode, GraphQLResolveInfo, GraphQLSchema} from 'graphql'
 
 export interface BaseGraphQLError {
   message: string

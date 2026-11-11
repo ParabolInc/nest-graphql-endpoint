@@ -1,10 +1,10 @@
-import assert from 'assert'
-import {writeFileSync} from 'fs'
+import assert from 'node:assert/strict'
+import {test} from 'node:test'
 import {parse, print} from 'graphql'
-import dealiasResult from '../src/dealiasResult'
-import mergeGQLDocuments from '../src/mergeGQLDocuments'
+import dealiasResult from '../src/dealiasResult.ts'
+import mergeGQLDocuments from '../src/mergeGQLDocuments.ts'
 
-const test1 = () => {
+test('merges documents and splits the response back into each one', () => {
   const q1 =
     `query getIssueLabels($repoName: String!, $repoOwner: String!, $issueNumber: Int!, $first: Int!) {
   rateLimit {
@@ -296,10 +296,211 @@ const test1 = () => {
       errors: null,
     }
   })
-  writeFileSync('r1.json', JSON.stringify(results[0]))
-  writeFileSync('q1.json', JSON.stringify(q1Response))
   assert.deepEqual(results[0], q1Response)
   assert.deepEqual(results[1], q2Response)
+})
+
+const mergedQuery = `{
+  repository(name: "parabol", owner: "ParabolInc") {
+    issue(number: 5821) {
+      __typename
+      ... on Issue {
+        __typename
+        title
+        number
+        repository_0: repository {
+          nameWithOwner
+          id
+        }
+        ...PokerEstimateHeaderCardGitHub_issue
+      }
+      id
+    }
+    issue_1: issue(number: 5811) {
+      __typename
+      ... on Issue {
+        __typename
+        title
+        number
+        repository_1: repository {
+          nameWithOwner
+          id
+        }
+        ...PokerEstimateHeaderCardGitHub_issue
+      }
+      id
+    }
+    issue_2: issue(number: 58112) {
+      __typename
+      ... on Issue {
+        __typename
+        title
+        number
+        repository_2: repository {
+          nameWithOwner
+          id
+        }
+        ...PokerEstimateHeaderCardGitHub_issue
+      }
+      id
+    }
+  }
 }
 
-test1()
+fragment PokerEstimateHeaderCardGitHub_issue on Issue {
+  number
+  title
+  bodyHTML
+  ghUrl: url
+}`
+
+test('aliases the fields that conflict across documents', () => {
+  const q1 = `{
+  repository(owner: "ParabolInc", name: "parabol") {
+    issue(number: 5821) {
+      __typename
+      ... on Issue {
+        __typename
+        title
+        number
+      }
+      id
+      __typename
+      id
+      __typename
+      id
+      __typename
+      ... on Issue {
+        __typename
+        repository {
+          nameWithOwner
+          id
+        }
+      }
+      id
+      __typename
+      id
+      __typename
+      ... on Issue {
+        __typename
+        ...PokerEstimateHeaderCardGitHub_issue
+      }
+      id
+    }
+  }
+}
+
+fragment PokerEstimateHeaderCardGitHub_issue on Issue {
+  number
+  title
+  bodyHTML
+  ghUrl: url
+}`
+
+  const q2 = `{
+  repository(owner: "ParabolInc", name: "parabol") {
+    issue(number: 5811) {
+      __typename
+      ... on Issue {
+        __typename
+        title
+        number
+      }
+      id
+      __typename
+      id
+      __typename
+      id
+      __typename
+      ... on Issue {
+        __typename
+        repository {
+          nameWithOwner
+          id
+        }
+      }
+      id
+      __typename
+      id
+      __typename
+      ... on Issue {
+        __typename
+        ...PokerEstimateHeaderCardGitHub_issue
+      }
+      id
+    }
+  }
+}
+
+fragment PokerEstimateHeaderCardGitHub_issue on Issue {
+  number
+  title
+  bodyHTML
+  ghUrl: url
+}`
+
+  const q3 = `{
+  repository(owner: "ParabolInc", name: "parabol") {
+    issue(number: 58112) {
+      __typename
+      ... on Issue {
+        __typename
+        title
+        number
+      }
+      id
+      __typename
+      id
+      __typename
+      id
+      __typename
+      ... on Issue {
+        __typename
+        repository {
+          nameWithOwner
+          id
+        }
+      }
+      id
+      __typename
+      id
+      __typename
+      ... on Issue {
+        __typename
+        ...PokerEstimateHeaderCardGitHub_issue
+      }
+      id
+    }
+  }
+}
+
+fragment PokerEstimateHeaderCardGitHub_issue on Issue {
+  number
+  title
+  bodyHTML
+  ghUrl: url
+}`
+  const d1 = parse(q1)
+  const d2 = parse(q2)
+  const d3 = parse(q3)
+  const variables = {}
+  const execParams = [
+    {
+      document: d1,
+      variables,
+      idx: 0,
+    },
+    {
+      document: d2,
+      variables,
+      idx: 1,
+    },
+    {
+      document: d3,
+      variables,
+      idx: 2,
+    },
+  ]
+  const {document} = mergeGQLDocuments(execParams)
+  assert.equal(print(document), mergedQuery)
+})

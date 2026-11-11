@@ -7,8 +7,10 @@ https://www.parabol.co/blog/nest-github-api-in-graphql-schema
 ### Install
 
 ```sh
-yarn add nest-graphql-endpoint
+pnpm add nest-graphql-endpoint graphql
 ```
+
+The package is ESM only and needs Node 22.18 or later, where CommonJS can `require()` it too.
 
 ### What's it do?
 
@@ -64,7 +66,7 @@ query {
 
 ```ts
 import {schema} from './mySchema'
-import nestGraphQLEndpoint, {nestGraphQLEndpoints} from 'nest-graphql-endpoint'
+import {nestGraphQLEndpoint, nestGraphQLEndpoints} from 'nest-graphql-endpoint'
 import {print} from 'graphql'
 import schemaIDL from './remoteSchemaIDL'
 
@@ -100,7 +102,11 @@ import {buildSchema, parse} from 'graphql'
 import {getNestedUsage, nestGraphQLEndpoints} from 'nest-graphql-endpoint'
 
 // at build time, against a schema printed with every nested type
-const usage = getNestedUsage(buildSchema(fullSDL), persistedQueries.map((query) => parse(query)), ['_extEndpoint'])
+const usage = getNestedUsage(
+  buildSchema(fullSDL),
+  persistedQueries.map((query) => parse(query)),
+  ['_extEndpoint'],
+)
 
 // at runtime
 const schema = nestGraphQLEndpoints(parentSchema, [github], {usage})
@@ -209,9 +215,19 @@ const todoResolver = async (source, args, context, info) => {
 6. When the endpoint responds, it will de-alias the response, re-apply the `__typename` prefix, and filter the errors by path
 7. For field resolvers, it removes any types that don't exist on the endpoint & then sends the request.
 
-### Limnitations
+### Limitations
 
 - FragmentDefinitions are assumed equal if they have matching names (Relay compiler guarantees this)
+
+### Development
+
+```sh
+pnpm install
+pnpm test       # node --test, running the TypeScript sources directly
+pnpm check      # Biome
+pnpm typecheck
+pnpm build      # dist/, which `pnpm pack` & `pnpm publish` build for you
+```
 
 ### License
 

@@ -1,19 +1,19 @@
 import {
-  DefinitionNode,
-  DocumentNode,
-  FieldNode,
-  FragmentDefinitionNode,
-  InlineFragmentNode,
+  type DefinitionNode,
+  type DocumentNode,
+  type FieldNode,
+  type FragmentDefinitionNode,
+  type InlineFragmentNode,
   Kind,
-  OperationDefinitionNode,
-  SelectionNode,
-  SelectionSetNode,
-  VariableDefinitionNode,
+  type OperationDefinitionNode,
+  type SelectionNode,
+  type SelectionSetNode,
+  type VariableDefinitionNode,
 } from 'graphql'
-import aliasDocVariables_ from './aliasDocVariables_'
-import areArgsEqual from './areArgsEqual'
-import areDirectivesEqual from './areDirectivesEqual'
-import {AliasMap, Variables} from './types'
+import aliasDocVariables_ from './aliasDocVariables_.ts'
+import areArgsEqual from './areArgsEqual.ts'
+import areDirectivesEqual from './areDirectivesEqual.ts'
+import type {AliasMap, Variables} from './types.ts'
 
 interface MutableSelectionSetNode extends SelectionSetNode {
   selections: SelectionSetNode['selections'][0][]

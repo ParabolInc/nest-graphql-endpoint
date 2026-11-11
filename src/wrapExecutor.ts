@@ -1,4 +1,4 @@
-import {Executor} from './types'
+import type {Executor} from './types.ts'
 
 const wrapExecutor =
   <TContext>(executor: Executor<TContext>): Executor<TContext> =>

@@ -1,60 +1,55 @@
 {
   "name": "nest-graphql-endpoint",
-  "author": "Matt Krick <matt.krick@gmail.com>",
   "version": "1.0.0",
-  "description": "Nest an external GraphQL Endpoint",
+  "description": "Nest an external GraphQL endpoint in your schema",
+  "author": "Matt Krick <matt.krick@gmail.com>",
+  "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/parabolinc/nest-graphql-endpoint.git"
+    "url": "git+https://github.com/ParabolInc/nest-graphql-endpoint.git"
   },
   "keywords": [
     "github",
-    "GraphQL",
+    "graphql",
     "schema"
   ],
-  "scripts": {
-    "lint": "eslint --fix src/**/*.ts",
-    "precommit": "lint-staged && tsc",
-    "prepublish": "tsc",
-    "test": "sucrase-node tests/pruneTypeDefs.ts"
-  },
-  "license": "MIT",
+  "type": "module",
   "sideEffects": false,
-  "main": "lib/nestGraphQLEndpoint.js",
+  "exports": {
+    ".": {
+      "types": "./dist/nestGraphQLEndpoint.d.ts",
+      "default": "./dist/nestGraphQLEndpoint.js"
+    }
+  },
+  "main": "./dist/nestGraphQLEndpoint.js",
+  "types": "./dist/nestGraphQLEndpoint.d.ts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "packageManager": "pnpm@12.18.0",
+  "scripts": {
+    "build": "node --eval \"fs.rmSync('dist', {recursive: true, force: true})\" && tsc -p tsconfig.build.json",
+    "check": "biome check",
+    "format": "biome check --write",
+    "typecheck": "tsc",
+    "test": "node --test \"tests/**/*.test.ts\"",
+    "prepack": "pnpm build"
+  },
   "peerDependencies": {
-    "graphql": "^16"
+    "graphql": "^16.0.0"
   },
   "dependencies": {
-    "@graphql-tools/schema": "^10.0.4",
-    "@graphql-tools/utils": "^10.2.1",
-    "dataloader": "^2.2.2",
-    "tslib": "^2.6.3",
-    "typescript": "^5.5.4"
+    "@graphql-tools/schema": "^10.1.0 || ^11.0.0",
+    "@graphql-tools/utils": "^12.0.3 || ^13.0.0",
+    "dataloader": "^2.2.3"
   },
   "devDependencies": {
-    "@types/node": "^20.2.3",
-    "@typescript-eslint/eslint-plugin": "^5.18.0",
-    "@typescript-eslint/parser": "^5.18.0",
-    "eslint": "^8.12.0",
-    "eslint-config-prettier": "^8.3.0",
-    "eslint-plugin-prettier": "^4.0.0",
-    "graphql": "^16.9.0",
-    "husky": "^8.0.3",
-    "lint-staged": "^13.2.2",
-    "prettier": "^2.4.1",
-    "sucrase": "^3.20.1"
-  },
-  "lint-staged": {
-    "*.{ts,tsx}": [
-      "eslint --fix"
-    ]
-  },
-  "prettier": {
-    "arrowParens": "always",
-    "bracketSpacing": false,
-    "printWidth": 100,
-    "singleQuote": true,
-    "semi": false,
-    "trailingComma": "all"
+    "@biomejs/biome": "2.6.6",
+    "@types/node": "^26.6.6",
+    "graphql": "^16.15.0",
+    "typescript": "^7.0.2"
   }
 }

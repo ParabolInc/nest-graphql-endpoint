@@ -1,7 +1,4 @@
 node_modules/
-.history/
+dist/
 *.log
-schema.graphql
-info.json
-wrapper.json
-debug.ts
+.history/
