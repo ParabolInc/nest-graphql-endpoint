@@ -10,6 +10,7 @@ declare const transformNestedSelection: (schema: GraphQLSchema, info: GraphQLRes
             selectionSet: import("graphql").SelectionSetNode;
             variableDefinitions: import("graphql").VariableDefinitionNode[];
             kind: Kind.OPERATION_DEFINITION;
+            description?: import("graphql").StringValueNode;
             loc?: import("graphql").Location;
             operation: import("graphql").OperationTypeNode;
             name?: import("graphql").NameNode;
@@ -17,6 +18,7 @@ declare const transformNestedSelection: (schema: GraphQLSchema, info: GraphQLRes
         })[];
         kind: Kind.DOCUMENT;
         loc?: import("graphql").Location;
+        tokenCount?: number | undefined;
     };
     variables: Variables;
     wrappedPath: string[] | undefined;

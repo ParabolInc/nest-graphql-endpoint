@@ -1,5 +1,25 @@
 # nest-graphql-endpoint
 
+## 1.0.0
+
+### BREAKING
+
+- `nestGraphQLEndpoint` no longer takes a `parentSchema` or returns a schema. It returns an endpoint, and `nestGraphQLEndpoints(parentSchema, endpoints, options)` builds one schema with all of them
+- `githubRequest` is now each endpoint's `request({query, endpointContext, info, variables, batchRef})`
+- Removed `nestGitHubEndpoint` and the `@octokit/graphql-schema` & `@graphql-tools/wrap` dependencies
+
+### Added
+
+- `usage` option: build only the nested types & fields that your operations use
+- `getNestedUsage` finds that usage in a set of documents
+- `findMissingNestedField` finds what a pruned schema left out of a document, e.g. to run it on a schema with every nested type
+- `mergeNestedUsage`
+- `assumeValidSDL` & `updateResolversInPlace` options, passed to `makeExecutableSchema`
+
+### Changed
+
+- An endpoint builds its own schema the first time a request needs it, instead of at startup. `getEndpointSchema()` returns it
+
 ## 0.8.3
 
 - Fix: don't infer operation type from parent query in

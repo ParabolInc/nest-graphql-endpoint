@@ -1,7 +1,7 @@
 {
   "name": "nest-graphql-endpoint",
   "author": "Matt Krick <matt.krick@gmail.com>",
-  "version": "0.8.3",
+  "version": "1.0.0",
   "description": "Nest an external GraphQL Endpoint",
   "repository": {
     "type": "git",
@@ -15,7 +15,8 @@
   "scripts": {
     "lint": "eslint --fix src/**/*.ts",
     "precommit": "lint-staged && tsc",
-    "prepublish": "tsc"
+    "prepublish": "tsc",
+    "test": "sucrase-node tests/pruneTypeDefs.ts"
   },
   "license": "MIT",
   "sideEffects": false,
@@ -25,8 +26,7 @@
   },
   "dependencies": {
     "@graphql-tools/schema": "^10.0.4",
-    "@graphql-tools/wrap": "^10.0.5",
-    "@octokit/graphql-schema": "^14.58.0",
+    "@graphql-tools/utils": "^10.2.1",
     "dataloader": "^2.2.2",
     "tslib": "^2.6.3",
     "typescript": "^5.5.4"
@@ -38,6 +38,7 @@
     "eslint": "^8.12.0",
     "eslint-config-prettier": "^8.3.0",
     "eslint-plugin-prettier": "^4.0.0",
+    "graphql": "^16.9.0",
     "husky": "^8.0.3",
     "lint-staged": "^13.2.2",
     "prettier": "^2.4.1",

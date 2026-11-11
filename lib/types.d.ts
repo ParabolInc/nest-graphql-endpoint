@@ -30,7 +30,6 @@ export interface AliasMapper {
 export type Executor<TContext> = (document: DocumentNode, variables: Variables, endpointTimeout: number, context: TContext) => EndpointExecutionResult | Promise<EndpointExecutionResult>;
 type ResolveEndpointContext<TContext> = (source: any, args: any, context: any, info: GraphQLResolveInfo) => TContext | Promise<TContext>;
 export interface NestGraphQLEndpointParams<TContext> {
-    parentSchema: GraphQLSchema;
     parentType: string;
     fieldName: string;
     resolveEndpointContext: ResolveEndpointContext<TContext>;
@@ -67,4 +66,25 @@ interface AliasMapEntry {
     children: AliasMap;
 }
 export type AliasMap = Record<string, AliasMapEntry>;
+export type NestedUsage = Record<string, readonly string[]>;
+export interface NestedRequestInput<TVars> {
+    query: string;
+    endpointContext: Record<string, any>;
+    info: GraphQLResolveInfo;
+    variables?: TVars;
+    batchRef?: Record<any, any>;
+}
+export interface NestedRequestResult<TData> {
+    data: TData;
+    errors: BaseGraphQLError[] | null | undefined;
+}
+export type NestedResolvers = Record<string, Record<string, any>>;
+export interface NestedEndpoint {
+    prefix: string;
+    getTypeDefs: (usage?: NestedUsage) => DocumentNode;
+    getEndpointSchema: () => GraphQLSchema;
+    parentTypeDefs: string;
+    resolvers: NestedResolvers;
+    request: <TData = any, TVars = any>(input: NestedRequestInput<TVars>) => Promise<NestedRequestResult<TData>>;
+}
 export {};
