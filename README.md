@@ -229,6 +229,13 @@ pnpm typecheck
 pnpm build      # dist/, which `pnpm pack` & `pnpm publish` build for you
 ```
 
+### Releasing
+
+Every merge to `main` publishes the version in `package.json` to npm, unless npm already has it, and creates a GitHub release with that version's CHANGELOG entry.
+So a PR that should ship bumps the version and adds its CHANGELOG entry, and a PR that doesn't publishes nothing.
+A prerelease version, like `1.1.0-beta.0`, is published under the `next` tag instead of `latest`.
+GitHub Actions publishes through npm's trusted publishing, with provenance, so there's no npm token to keep.
+
 ### License
 
 MIT

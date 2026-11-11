@@ -1,0 +1,56 @@
+name: Publish
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # npm's trusted publisher for this package names this workflow & environment
+    environment: npm
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          # trusted publishing needs npm 11.5.1 or later
+          node-version: 26
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm typecheck
+      - run: pnpm test
+      - name: Publish the version in package.json, unless npm has it
+        id: publish
+        run: |
+          version=$(node --print "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ -n "$(npm view "nest-graphql-endpoint@$version" version 2>/dev/null)" ]; then
+            echo "nest-graphql-endpoint@$version is already on npm, so there is nothing to publish"
+            exit 0
+          fi
+          # a prerelease, like 1.1.0-beta.0, goes out under next so it doesn't become latest
+          case "$version" in
+            *-*) npm publish --tag next ;;
+            *) npm publish ;;
+          esac
+          echo "published=true" >> "$GITHUB_OUTPUT"
+      - name: Create the GitHub release
+        if: steps.publish.outputs.published == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.publish.outputs.version }}
+        run: |
+          awk -v heading="## $VERSION" '$0 == heading {found = 1; next} found && /^## / {exit} found {print}' CHANGELOG.md > notes.md
+          prerelease=""
+          case "$VERSION" in *-*) prerelease="--prerelease" ;; esac
+          gh release create "v$VERSION" --target "$GITHUB_SHA" --title "v$VERSION" --notes-file notes.md $prerelease

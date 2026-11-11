@@ -23,6 +23,7 @@
 - An endpoint builds its own schema the first time a request needs it, instead of at startup. `getEndpointSchema()` returns it
 - Depends on `@graphql-tools/schema` 10 or 11 and `@graphql-tools/utils` 12 or 13, and no longer on `typescript` or `tslib`
 - Built with TypeScript 7. The repo uses pnpm, Biome and `node:test`, and no longer commits build output
+- Every merge to `main` publishes a new version to npm, with provenance
 
 ## 0.8.3
 
