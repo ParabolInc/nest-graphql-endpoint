@@ -6,6 +6,7 @@ import {
   type GraphQLSchema,
   Kind,
   type OperationDefinitionNode,
+  type SelectionSetNode,
   TypeInfo,
   visit,
   visitWithTypeInfo,
@@ -41,31 +42,42 @@ const transformInfoIntoDoc = (info: GraphQLResolveInfo, operationType: 'query' |
 // remove unused fragDefs, varDefs, and variables
 const pruneUnused = (doc: DocumentNode, allVariables: GraphQLResolveInfo['variableValues']) => {
   const usedVariables = new Set<string>()
-  const usedFragmentSpreads = new Set<string>()
   const {definitions} = doc
   const opDef = definitions.find(
     ({kind}) => kind === Kind.OPERATION_DEFINITION,
   ) as OperationDefinitionNode
+  const fragDefsByName = new Map(
+    (
+      definitions.filter(({kind}) => kind === Kind.FRAGMENT_DEFINITION) as FragmentDefinitionNode[]
+    ).map((fragDef) => [fragDef.name.value, fragDef]),
+  )
+  const prunedFragDefsByName = new Map<string, FragmentDefinitionNode>()
+  const unvisitedFragmentNames = [] as string[]
 
-  const nextSelectionSet = visit(opDef.selectionSet, {
-    Variable(node) {
-      const {name} = node
-      const {value} = name
-      usedVariables.add(value)
-    },
-    FragmentSpread(node) {
-      const {name} = node
-      const {value} = name
-      const fragmentDefinition = definitions.find(
-        (definition) =>
-          definition.kind === Kind.FRAGMENT_DEFINITION && definition.name.value === value,
-      )
-      // the fragmentDefinition may have been removed by pruneLocalTypes
-      if (!fragmentDefinition) return null
-      usedFragmentSpreads.add(value)
-      return undefined
-    },
-  })
+  const pruneSelectionSet = (selectionSet: SelectionSetNode) =>
+    visit(selectionSet, {
+      Variable(node) {
+        usedVariables.add(node.name.value)
+      },
+      FragmentSpread(node) {
+        const {value} = node.name
+        // the fragmentDefinition may have been removed by pruneLocalTypes
+        if (!fragDefsByName.has(value)) return null
+        unvisitedFragmentNames.push(value)
+        return undefined
+      },
+    })
+
+  const nextSelectionSet = pruneSelectionSet(opDef.selectionSet)
+  while (unvisitedFragmentNames.length > 0) {
+    const fragmentName = unvisitedFragmentNames.pop()!
+    if (prunedFragDefsByName.has(fragmentName)) continue
+    const fragDef = fragDefsByName.get(fragmentName)!
+    prunedFragDefsByName.set(fragmentName, {
+      ...fragDef,
+      selectionSet: pruneSelectionSet(fragDef.selectionSet),
+    })
+  }
 
   const variableDefinitions = opDef.variableDefinitions || []
   const prunedOpDef = {
@@ -79,12 +91,6 @@ const pruneUnused = (doc: DocumentNode, allVariables: GraphQLResolveInfo['variab
     }),
   }
 
-  const prunedFragDefs = definitions.filter(
-    (definition) =>
-      definition.kind === Kind.FRAGMENT_DEFINITION &&
-      usedFragmentSpreads.has(definition.name.value),
-  ) as FragmentDefinitionNode[]
-
   const variables = {} as Variables
   usedVariables.forEach((variableName) => {
     variables[variableName] = allVariables[variableName]
@@ -94,7 +100,7 @@ const pruneUnused = (doc: DocumentNode, allVariables: GraphQLResolveInfo['variab
     variables,
     document: {
       ...doc,
-      definitions: [prunedOpDef, ...prunedFragDefs],
+      definitions: [prunedOpDef, ...prunedFragDefsByName.values()],
     },
   }
 }

@@ -1,5 +1,11 @@
 # nest-graphql-endpoint
 
+## 1.0.1
+
+### Fixed
+
+- A fragment spread inside another fragment no longer loses its definition before the request is sent, which threw `Cannot read properties of undefined (reading 'selectionSet')`. Variables used only inside fragments are sent too, and a spread of a fragment removed for being on a local type is removed wherever it appears
+
 ## 1.0.0
 
 ### BREAKING
