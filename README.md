@@ -210,14 +210,10 @@ const todoResolver = async (source, args, context, info) => {
 1. It extends your schema with a type that contains `{errors, query, mutation}`
 2. Given a remote IDL, it prefixes the `__typename` so there are no conflicts with your own schema
 3. It batches all requests by the `batchKey` so only 1 request is made per key. In the above example, this is the accessToken.
-4. For each batched request, it removes the `__typename` prefix and merges the fragments, variableDefinitions, and variables.
+4. For each batched request, it removes the `__typename` prefix, inlines its fragments, and merges its selections, variableDefinitions, and variables.
 5. In the event of a name conflict, it will alias fields before the request is fetched.
 6. When the endpoint responds, it will de-alias the response, re-apply the `__typename` prefix, and filter the errors by path
 7. For field resolvers, it removes any types that don't exist on the endpoint & then sends the request.
-
-### Limitations
-
-- FragmentDefinitions are assumed equal if they have matching names (Relay compiler guarantees this)
 
 ### Development
 
