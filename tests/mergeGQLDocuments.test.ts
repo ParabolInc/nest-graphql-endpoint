@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
-import {parse, print} from 'graphql'
+import {buildSchema, execute, parse, print, validate} from 'graphql'
+import batchFn from '../src/batchFn.ts'
 import dealiasResult from '../src/dealiasResult.ts'
 import mergeGQLDocuments from '../src/mergeGQLDocuments.ts'
+import type {EndpointExecutionResult, Executor} from '../src/types.ts'
 
 test('merges documents and splits the response back into each one', () => {
   const q1 =
@@ -503,4 +505,88 @@ fragment PokerEstimateHeaderCardGitHub_issue on Issue {
   ]
   const {document} = mergeGQLDocuments(execParams)
   assert.equal(print(document), mergedQuery)
+})
+
+const trackerSchema = buildSchema(`
+  type Query { issue(id: ID!): Issue }
+  type Issue { id: ID! title: String! assignee: User }
+  type User { id: ID! name: String! }
+`)
+
+const trackerData = {
+  issue: {id: 'issue1', title: 'Ship the widget', assignee: {id: 'user1', name: 'Ada'}},
+}
+
+// runs the merged document against a real schema, so the response has the keys an endpoint would send
+const batchTrackerRequests = async (queries: string[]) => {
+  const sent: string[] = []
+  const executor: Executor<{accessToken: string}> = async (document, variables) => {
+    sent.push(print(document))
+    const validationErrors = validate(trackerSchema, document)
+    if (validationErrors.length > 0) {
+      return {data: null, errors: validationErrors.map(({message}) => ({message}))}
+    }
+    const result = await execute({
+      schema: trackerSchema,
+      document,
+      variableValues: variables,
+      rootValue: trackerData,
+    })
+    return result as EndpointExecutionResult
+  }
+  const results = await batchFn(
+    queries.map((query) => ({
+      document: parse(query),
+      variables: {},
+      context: {accessToken: 'tracker-token'},
+      options: {
+        batchKey: 'accessToken',
+        endpointTimeout: 1000,
+        executor,
+        prefix: '_xTracker',
+        isMutation: false,
+      },
+    })),
+  )
+  assert.deepEqual(
+    results.flatMap((result) => result.errors ?? []),
+    [],
+  )
+  return {data: results.map((result) => result.data), sent}
+}
+
+test('returns each response key a request selects one field under', async () => {
+  const {data, sent} = await batchTrackerRequests([
+    '{ issue(id: "issue1") { title shortTitle: title } }',
+    '{ issue(id: "issue1") { shortTitle: title } }',
+  ])
+  assert.deepEqual(sent, ['{\n  issue(id: "issue1") {\n    title\n  }\n}'])
+  assert.deepEqual(data, [
+    {issue: {title: 'Ship the widget', shortTitle: 'Ship the widget'}},
+    {issue: {shortTitle: 'Ship the widget'}},
+  ])
+})
+
+test('returns each response key when inline fragments on one type merge', async () => {
+  const {data} = await batchTrackerRequests([
+    '{ issue(id: "issue1") { ... on Issue { title } ... on Issue { shortTitle: title } } }',
+  ])
+  assert.deepEqual(data, [{issue: {title: 'Ship the widget', shortTitle: 'Ship the widget'}}])
+})
+
+test('returns __typename when an aliased __typename follows it', async () => {
+  const {data} = await batchTrackerRequests([
+    '{ issue(id: "issue1") { __typename __isIntegration: __typename } }',
+  ])
+  assert.deepEqual(data, [
+    {issue: {__typename: '_xTrackerIssue', __isIntegration: '_xTrackerIssue'}},
+  ])
+})
+
+test('returns the subfields of a field selected again in a fragment', async () => {
+  const {data} = await batchTrackerRequests([
+    `{ issue(id: "issue1") { assignee { id } ...IssueAssignee } }
+    fragment IssueAssignee on Issue { assignee { name } }`,
+  ])
+  assert.deepEqual(data, [{issue: {assignee: {id: 'user1', name: 'Ada'}}}])
 })

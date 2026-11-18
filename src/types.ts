@@ -94,7 +94,9 @@ interface AliasMapEntry {
   children: AliasMap
 }
 
-export type AliasMap = Record<string, AliasMapEntry>
+// Keyed by the response key in the merged document, listing each response key of the request it answers,
+// e.g. `title` answers both `title` & `shortTitle: title`
+export type AliasMap = Record<string, AliasMapEntry[]>
 
 // The fields operations select on each nested type, keyed by the type's prefixed name.
 // A type listed without fields is kept with as few fields as a valid schema allows

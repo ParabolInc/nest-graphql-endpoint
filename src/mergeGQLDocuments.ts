@@ -144,8 +144,6 @@ const getMergedSelections = (
             areDirectivesEqual(s.directives, newFieldDirectives),
         ) as FieldNode | undefined)
 
-    // map which fields are getting aliased
-    const childAliasMap = Object.create(null) as AliasMap
     let endpointResponseFieldName: string
     const isRequestedFieldNameFree = () => {
       return !nextSelections.find((s) => {
@@ -174,13 +172,18 @@ const getMergedSelections = (
       })
     }
 
-    aliasMap[endpointResponseFieldName] = {
-      name: requestedFieldName,
-      children: childAliasMap,
+    // one field can answer several of the request's response keys, so add to its entries
+    // A response key selected again, e.g. directly & in a fragment, keeps the children it had
+    aliasMap[endpointResponseFieldName] ??= []
+    const aliasMapEntries = aliasMap[endpointResponseFieldName]
+    let aliasMapEntry = aliasMapEntries.find((entry) => entry.name === requestedFieldName)
+    if (!aliasMapEntry) {
+      aliasMapEntry = {name: requestedFieldName, children: Object.create(null) as AliasMap}
+      aliasMapEntries.push(aliasMapEntry)
     }
     if (!selectionSet) return
-    // Recurse the child selections to suffix names & populate the childAliasMap
-    upsertFields(existingField, newSelection, childAliasMap)
+    // Recurse the child selections to suffix names & populate the entry's children
+    upsertFields(existingField, newSelection, aliasMapEntry.children)
   })
   return nextSelections
 }
