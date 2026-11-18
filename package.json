@@ -1,6 +1,6 @@
 {
   "name": "nest-graphql-endpoint",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Nest an external GraphQL endpoint in your schema",
   "author": "Matt Krick <matt.krick@gmail.com>",
   "license": "MIT",

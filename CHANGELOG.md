@@ -1,5 +1,15 @@
 # nest-graphql-endpoint
 
+## 1.0.2
+
+### Fixed
+
+- A request that selects one field under two response keys, like `title` & `shortTitle: title` or `__typename` & `__isNode: __typename`, gets both back. It got only the last one, so the other resolved to null, or an abstract type couldn't resolve without its `__typename`. A field selected twice under one response key, e.g. directly & in a fragment, keeps the fields both select
+
+### Changed
+
+- The exported `AliasMap` type lists every response key of the request that a field in the merged document answers
+
 ## 1.0.1
 
 ### Fixed
