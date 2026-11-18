@@ -44,20 +44,71 @@ const addNewVariableDefinitions_ = (
   })
 }
 
+// Swaps each fragment spread for an inline fragment, so the fields of each request get response keys of their own.
+// A fragment that applies wherever its parent does, like any at the root or one on its parent fragment's type, joins its parent.
+// Fields & inline fragments are copied because merging changes their selections in place
+const inlineFragments = (
+  selections: readonly SelectionNode[],
+  definitions: readonly DefinitionNode[],
+  parentTypeCondition: string | undefined,
+  isRoot: boolean,
+): (FieldNode | InlineFragmentNode)[] =>
+  selections.flatMap((selection) => {
+    if (selection.kind === Kind.FIELD) {
+      const {selectionSet} = selection
+      if (!selectionSet) return [selection]
+      const inlinedSelections = inlineFragments(
+        selectionSet.selections,
+        definitions,
+        undefined,
+        false,
+      )
+      return [{...selection, selectionSet: {...selectionSet, selections: inlinedSelections}}]
+    }
+    const {directives} = selection
+    const {typeCondition, selectionSet} =
+      selection.kind === Kind.INLINE_FRAGMENT
+        ? selection
+        : (definitions.find(
+            (def) =>
+              def.kind === Kind.FRAGMENT_DEFINITION && def.name.value === selection.name.value,
+          ) as FragmentDefinitionNode)
+    const typeName = typeCondition?.name.value
+    if (!directives?.length && (isRoot || !typeName || typeName === parentTypeCondition)) {
+      return inlineFragments(selectionSet.selections, definitions, parentTypeCondition, isRoot)
+    }
+    const childTypeCondition = typeName ?? parentTypeCondition
+    const inlinedSelections = inlineFragments(
+      selectionSet.selections,
+      definitions,
+      childTypeCondition,
+      false,
+    )
+    return [
+      {
+        kind: Kind.INLINE_FRAGMENT,
+        typeCondition,
+        directives,
+        selectionSet: {...selectionSet, selections: inlinedSelections},
+      },
+    ]
+  })
+
 const getMergedSelections = (
   baseSelections: readonly SelectionNode[],
   newSelections: readonly SelectionNode[],
-  definitions: readonly DefinitionNode[],
   aliasMap: AliasMap,
   aliasIdx: number,
   isSuffixRequired: boolean,
   isMutation: boolean,
+  isRoot: boolean,
 ) => {
   const nextSelections = [...baseSelections]
   const upsertFields = <T extends InlineFragmentNode | FieldNode>(
     existingSelection: T | undefined,
     newSelection: T,
     childAliasMap: AliasMap,
+    isChildSuffixRequired: boolean,
   ) => {
     const base = existingSelection?.selectionSet?.selections ?? []
     // guaranteed to have a selectionSet if the existingSelection does
@@ -65,11 +116,10 @@ const getMergedSelections = (
     const updatedSelections = getMergedSelections(
       base,
       newSelectionSet.selections,
-      definitions,
       childAliasMap,
       aliasIdx,
-      // a suffix isn't required for children inside their own suffixed parent
-      !!existingSelection,
+      isChildSuffixRequired,
+      false,
       false,
     )
     if (existingSelection) {
@@ -80,6 +130,8 @@ const getMergedSelections = (
     return true
   }
   newSelections.forEach((newSelection) => {
+    // inlineFragments swapped every fragment spread for an inline fragment
+    if (newSelection.kind === Kind.FRAGMENT_SPREAD) return
     if (newSelection.kind === Kind.INLINE_FRAGMENT) {
       // if there's an existing inline fragment with the type condition & directives
       // use that instead, just suffix all the fields
@@ -90,35 +142,17 @@ const getMergedSelections = (
           s.typeCondition?.name.value === typeCondition &&
           areDirectivesEqual(s.directives, newSelection.directives),
       ) as InlineFragmentNode | undefined
-      const isInsert = upsertFields(existingInlineFragment, newSelection, aliasMap)
+      // Its fields land in its parent's response object, so they need a suffix wherever the parent's fields do.
+      // The root suffixes a field only when its response key is taken, which a field inside an inline fragment can't check
+      const isInsert = upsertFields(
+        existingInlineFragment,
+        newSelection,
+        aliasMap,
+        isSuffixRequired || isRoot || !!existingInlineFragment,
+      )
       if (isInsert) {
         nextSelections.push(newSelection)
       }
-      return
-    }
-    if (newSelection.kind === Kind.FRAGMENT_SPREAD) {
-      // if it's a new fragment spread, add it, else ignore
-      const existingFrag = nextSelections.find(
-        (s) => s.kind === Kind.FRAGMENT_SPREAD && s.name.value === newSelection.name.value,
-      )
-      if (!existingFrag) {
-        nextSelections.push(newSelection)
-      }
-      const fragDef = definitions.find(
-        (def) =>
-          def.kind === Kind.FRAGMENT_DEFINITION && def.name.value === newSelection.name.value,
-      ) as FragmentDefinitionNode
-      const fragDefSelections = fragDef.selectionSet.selections
-      // Update the aliasMap by traversing the children
-      getMergedSelections(
-        fragDefSelections,
-        fragDefSelections,
-        definitions,
-        aliasMap,
-        aliasIdx,
-        true,
-        false,
-      )
       return
     }
     const {
@@ -183,7 +217,8 @@ const getMergedSelections = (
     }
     if (!selectionSet) return
     // Recurse the child selections to suffix names & populate the entry's children
-    upsertFields(existingField, newSelection, aliasMapEntry.children)
+    // a suffix isn't required for children inside their own suffixed parent
+    upsertFields(existingField, newSelection, aliasMapEntry.children, !!existingField)
   })
   return nextSelections
 }
@@ -222,12 +257,12 @@ const addNewOperationDefinition_ = (
   const {selections} = selectionSet
   baseSelectionSet.selections = getMergedSelections(
     baseSelections,
-    selections,
-    definitions,
+    inlineFragments(selections, definitions, undefined, true),
     aliasMap,
     aliasIdx,
     false,
     isMutation,
+    true,
   )
 }
 
@@ -240,6 +275,7 @@ const mergeGQLDocuments = (cachedExecParams: CachedExecParams[], isMutation?: bo
     const {definitions} = aliasedVarsDoc
     const aliasMap = Object.create(null) as AliasMap
     definitions.forEach((definition) => {
+      // fragment definitions aren't sent: inlineFragments copies them into the operation, with the request's own variables
       if (definition.kind === Kind.OPERATION_DEFINITION) {
         addNewOperationDefinition_(
           baseDefinitions,
@@ -249,16 +285,6 @@ const mergeGQLDocuments = (cachedExecParams: CachedExecParams[], isMutation?: bo
           !!isMutation,
           aliasMap,
         )
-      } else if (definition.kind === Kind.FRAGMENT_DEFINITION) {
-        // Assumes similarly named fragments are identical
-        // That means no alias necessary & we can reuse across the batch
-        const fragmentName = definition.name.value
-        const existingFrag = baseDefinitions.find(
-          (def) => def.kind === Kind.FRAGMENT_DEFINITION && def.name.value === fragmentName,
-        )
-        if (!existingFrag) {
-          baseDefinitions.push(definition)
-        }
       }
     })
     aliasMaps.push(aliasMap)

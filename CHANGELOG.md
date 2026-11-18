@@ -1,5 +1,18 @@
 # nest-graphql-endpoint
 
+## 1.0.3
+
+### Fixed
+
+- A field inside a fragment no longer clashes with the fields of other requests in its batch. A field in an inline or named fragment could take a response key that another request gives a different field, and a variable used in a fragment was left unused for every request but the first, so the endpoint rejected the whole batch
+- Two requests that spread a fragment selecting one object field under two keys both get its subfields. The second got that field empty
+- A field that a request selects directly & in a fragment keeps the subfields of both when another request shares its parent
+- A list with a null item, or a `__typename` selected only in a fragment that doesn't apply, no longer fails the whole batch
+
+### Changed
+
+- Each request's fragments are inlined before its document is merged, so the document sent to the endpoint has no fragment definitions
+
 ## 1.0.2
 
 ### Fixed

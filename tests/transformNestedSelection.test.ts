@@ -72,7 +72,7 @@ const buildTrackerSchema = (data: unknown) => {
   return {schema, sent}
 }
 
-test('a request through a wrapper sends fragments spread inside other fragments', async () => {
+test('a request through a wrapper sends the fields of fragments spread inside other fragments', async () => {
   const {schema, sent} = buildTrackerSchema({issue})
   const result = await execute({
     schema,
@@ -115,11 +115,11 @@ test('a request through a wrapper sends fragments spread inside other fragments'
     },
   })
   assert.equal(sent.length, 1)
-  assert.match(sent[0]!.document, /fragment TrackerLink on Issue/)
+  assert.match(sent[0]!.document, /state {\s+name\s+}/)
   assert.doesNotMatch(sent[0]!.document, /JiraLink|issueKey/)
 })
 
-test('a direct query sends nested fragments and the variables only they use', async () => {
+test('a direct query sends the fields of nested fragments and the variables only they use', async () => {
   const {schema, sent} = buildTrackerSchema({issue: {...issue, body: '**Ship**'}})
   const result = await execute({
     schema,
@@ -149,6 +149,6 @@ test('a direct query sends nested fragments and the variables only they use', as
   })
   assert.equal(sent.length, 1)
   assert.match(sent[0]!.document, /query \(\$format: String\)/)
-  assert.match(sent[0]!.document, /fragment IssueBody on Issue/)
+  assert.match(sent[0]!.document, /body\(format: \$format\)/)
   assert.deepEqual({...(sent[0]!.variables as object)}, {format: 'markdown'})
 })

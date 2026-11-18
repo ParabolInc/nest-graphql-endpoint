@@ -4,7 +4,7 @@ import {buildSchema, execute, parse, print, validate} from 'graphql'
 import batchFn from '../src/batchFn.ts'
 import dealiasResult from '../src/dealiasResult.ts'
 import mergeGQLDocuments from '../src/mergeGQLDocuments.ts'
-import type {EndpointExecutionResult, Executor} from '../src/types.ts'
+import type {EndpointExecutionResult, Executor, Variables} from '../src/types.ts'
 
 test('merges documents and splits the response back into each one', () => {
   const q1 =
@@ -314,7 +314,8 @@ const mergedQuery = `{
           nameWithOwner
           id
         }
-        ...PokerEstimateHeaderCardGitHub_issue
+        bodyHTML_0: bodyHTML
+        ghUrl_0: url
       }
       id
     }
@@ -328,7 +329,8 @@ const mergedQuery = `{
           nameWithOwner
           id
         }
-        ...PokerEstimateHeaderCardGitHub_issue
+        bodyHTML_1: bodyHTML
+        ghUrl_1: url
       }
       id
     }
@@ -342,18 +344,12 @@ const mergedQuery = `{
           nameWithOwner
           id
         }
-        ...PokerEstimateHeaderCardGitHub_issue
+        bodyHTML_2: bodyHTML
+        ghUrl_2: url
       }
       id
     }
   }
-}
-
-fragment PokerEstimateHeaderCardGitHub_issue on Issue {
-  number
-  title
-  bodyHTML
-  ghUrl: url
 }`
 
 test('aliases the fields that conflict across documents', () => {
@@ -509,16 +505,24 @@ fragment PokerEstimateHeaderCardGitHub_issue on Issue {
 
 const trackerSchema = buildSchema(`
   type Query { issue(id: ID!): Issue }
-  type Issue { id: ID! title: String! assignee: User }
+  type Issue { id: ID! title: String! assignee: User labels: [Label] }
   type User { id: ID! name: String! }
+  type Label { name: String! }
 `)
 
-const trackerData = {
-  issue: {id: 'issue1', title: 'Ship the widget', assignee: {id: 'user1', name: 'Ada'}},
+const issuesById: Record<string, unknown> = {
+  issue1: {
+    id: 'issue1',
+    title: 'Ship the widget',
+    assignee: {id: 'user1', name: 'Ada'},
+    labels: [{name: 'bug'}, null],
+  },
+  issue2: {id: 'issue2', title: 'Fix the gadget', assignee: null, labels: []},
 }
+const trackerData = {issue: ({id}: {id: string}) => issuesById[id]}
 
 // runs the merged document against a real schema, so the response has the keys an endpoint would send
-const batchTrackerRequests = async (queries: string[]) => {
+const batchTrackerRequests = async (queries: string[], variables: Variables[] = []) => {
   const sent: string[] = []
   const executor: Executor<{accessToken: string}> = async (document, variables) => {
     sent.push(print(document))
@@ -535,9 +539,9 @@ const batchTrackerRequests = async (queries: string[]) => {
     return result as EndpointExecutionResult
   }
   const results = await batchFn(
-    queries.map((query) => ({
+    queries.map((query, idx) => ({
       document: parse(query),
-      variables: {},
+      variables: variables[idx] ?? {},
       context: {accessToken: 'tracker-token'},
       options: {
         batchKey: 'accessToken',
@@ -589,4 +593,58 @@ test('returns the subfields of a field selected again in a fragment', async () =
     fragment IssueAssignee on Issue { assignee { name } }`,
   ])
   assert.deepEqual(data, [{issue: {assignee: {id: 'user1', name: 'Ada'}}}])
+})
+
+test('returns the subfields of a field selected directly & in a fragment when another request shares its parent', async () => {
+  const query = `{ issue(id: "issue1") { assignee { id } ...IssueAssignee } }
+    fragment IssueAssignee on Issue { assignee { name } }`
+  const assignee = {id: 'user1', name: 'Ada'}
+  const titleFirst = await batchTrackerRequests(['{ issue(id: "issue1") { title } }', query])
+  assert.deepEqual(titleFirst.data, [{issue: {title: 'Ship the widget'}}, {issue: {assignee}}])
+  const assigneeFirst = await batchTrackerRequests([
+    '{ issue(id: "issue1") { assignee { id } } }',
+    query,
+  ])
+  assert.deepEqual(assigneeFirst.data, [{issue: {assignee: {id: 'user1'}}}, {issue: {assignee}}])
+})
+
+test('returns each key of a field that a fragment selects twice, for each request that spreads it', async () => {
+  const query = `{ issue(id: "issue1") { ...IssueAssignees } }
+    fragment IssueAssignees on Issue { a: assignee { id } b: assignee { name } }`
+  const {data} = await batchTrackerRequests([query, query])
+  const issue = {a: {id: 'user1'}, b: {name: 'Ada'}}
+  assert.deepEqual(data, [{issue}, {issue}])
+})
+
+test("keeps a fragment's field apart from the field another request gives its response key", async () => {
+  const {data} = await batchTrackerRequests([
+    '{ issue(id: "issue1") { title: id } }',
+    '{ issue(id: "issue1") { ... on Issue { title } } }',
+    `{ issue(id: "issue1") { ...IssueTitle } }
+    fragment IssueTitle on Issue { title }`,
+  ])
+  assert.deepEqual(data, [
+    {issue: {title: 'issue1'}},
+    {issue: {title: 'Ship the widget'}},
+    {issue: {title: 'Ship the widget'}},
+  ])
+})
+
+test('keeps the fields of fragments at the root apart, with the variables of each request', async () => {
+  const query = `query ($id: ID!) { ...IssueById }
+    fragment IssueById on Query { issue(id: $id) { title } }`
+  const {data} = await batchTrackerRequests(
+    [query, query, '{ issue(id: "issue1") { id } }'],
+    [{id: 'issue1'}, {id: 'issue2'}],
+  )
+  assert.deepEqual(data, [
+    {issue: {title: 'Ship the widget'}},
+    {issue: {title: 'Fix the gadget'}},
+    {issue: {id: 'issue1'}},
+  ])
+})
+
+test('returns a list that has a null item', async () => {
+  const {data} = await batchTrackerRequests(['{ issue(id: "issue1") { labels { name } } }'])
+  assert.deepEqual(data, [{issue: {labels: [{name: 'bug'}, null]}}])
 })
